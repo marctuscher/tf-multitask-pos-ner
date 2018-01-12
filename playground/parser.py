@@ -13,6 +13,13 @@ def determine_type(name):
         return -1
 
 def parse_pos(filename):
+    """
+    pos:
+    POS tags are according to the Penn Treebank POS tagset: https://www.ling.upenn.edu/courses/Fall_2003/ling001/penn_treebank_pos.html
+    format:
+    word \t tag
+    One word per line, sentences separated by newline.
+    """
     with open(filename, 'rb') as file:
         pass
 
@@ -33,10 +40,27 @@ def parse_ner(filename):
     LOC (location)
     MISC (misscelaneous)
     """
-    with open(filename, 'rb') as file:
+    with open(filename, 'r') as file:
         line = file.readline()
+        print(line)
         while '-DOCSTART-' in line or line == '':
             line = file.readline()
+        while True:
+            try:
+                # read line as usual
+                word, tag = file.readline().split('\t')
+            except ValueError:
+                # TODO: Raised error after every sentence is probably a performance bottleneck
+                # encountered a line without tags, if it happens again, we assume to have reached the end
+                # of the file and break out of the loop
+                val = file.readline().split('\t')
+                if len(val) < 2:
+                    break
+                else:
+                    word, tag = val
+            print(word)
+            
+
         
         
         
