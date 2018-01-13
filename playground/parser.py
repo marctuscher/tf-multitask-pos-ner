@@ -19,9 +19,22 @@ def parse_pos(filename):
     format:
     word \t tag
     One word per line, sentences separated by newline.
+
+    Parsing to an array of dicts, maybe not the best solution
     """
-    with open(filename, 'rb') as file:
-        pass
+    sentences = []
+    tmpdic = {'words': [], 'tags':[]}
+    with open(filename, 'r', encoding='utf-8') as file:
+        for line in file:
+            if line != "\n":
+                word, tag = line.split()
+                tmpdic['words'].append(word)
+                tmpdic['tags'].append(tag)
+            else:
+                sentences.append(tmpdic)
+                tmpdic = {'words': [], 'tags':[]}
+    return sentences
+
 
 def parse_ner(filename):
     """
@@ -59,12 +72,6 @@ def parse_ner(filename):
                 else:
                     word, tag = val
             print(word)
-            
-
-        
-        
-        
-
 
 def main():
     parser = argparse.ArgumentParser('Parse a file and pickle it')
