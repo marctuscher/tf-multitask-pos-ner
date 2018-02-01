@@ -8,7 +8,7 @@ import pickle
 
 
 
-def parse_pos_training(filename):
+def parse_pos_training(filename, model):
     """
     pos:
     POS tags are according to the Penn Treebank POS tagset: https://www.ling.upenn.edu/courses/Fall_2003/ling001/penn_treebank_pos.html
@@ -18,6 +18,7 @@ def parse_pos_training(filename):
 
     Parsing to an array of dicts, maybe not the best solution
     """
+    print("reloeaded parser")
     sentences = []
     tmpdic = {'words': [], 'tags':[], 'wc': 0}
     dictionary_vec = []
@@ -30,7 +31,7 @@ def parse_pos_training(filename):
             if line != "\n":
                 word, tag = line.split()
                 # TODO ugly hard coded shit, sorry for that :) should we change it?
-                if word not in string.punctuation and word != '``' and word != '\'\'' and word!= '-rrb-':
+                if word in model.wv.vocab:
                     word = str(word.lower())
                     tmpdic['words'].append(word)
                     if word not in dictionary_vec:
