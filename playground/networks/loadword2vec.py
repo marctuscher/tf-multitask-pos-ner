@@ -1,13 +1,12 @@
+import imp
+import os
+
 import gensim
 import numpy as np
-import os,sys
-from gensim.models import Word2Vec
-import extend_parser as parser
-import imp
 import tensorflow as tf
-import utils
 
-
+from playground.parsing import extend_parser as parser
+from playground.utilities import utils
 
 imp.reload(parser)
 imp.reload(utils)
