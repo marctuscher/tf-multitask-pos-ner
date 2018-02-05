@@ -32,7 +32,6 @@ def parse_pos_training(filename, model):
                 word, tag = line.split()
                 # TODO ugly hard coded shit, sorry for that :) should we change it?
                 if word in model.wv.vocab:
-                    word = str(word.lower())
                     tmpdic['words'].append(word)
                     if word not in dictionary_vec:
                         dictionary_vec.append(word)
