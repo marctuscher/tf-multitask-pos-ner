@@ -6,9 +6,7 @@ from numba import jit
 import tensorflow as tf
 import pickle
 
-
-
-def parse_pos_training(filename, model):
+def parse_pos_training(filename, vocab):
     """
     pos:
     POS tags are according to the Penn Treebank POS tagset: https://www.ling.upenn.edu/courses/Fall_2003/ling001/penn_treebank_pos.html
@@ -16,9 +14,13 @@ def parse_pos_training(filename, model):
     word \t tag
     One word per line, sentences separated by newline.
 
-    Parsing to an array of dicts, maybe not the best solution
+    Returns:
+    sentences: a list of dicts containing
+    - a list of words
+    - corresponding list of tags
+    - number of word (kind of redundant)
     """
-    print("reloeaded parser")
+    print("reloaded parser")
     sentences = []
     tmpdic = {'words': [], 'tags':[], 'wc': 0}
     dictionary_vec = []
@@ -49,7 +51,6 @@ def parse_pos_training(filename, model):
                 tmpdic = {'words': [], 'tags':[], 'wc': 0}
     return sentences, np.array(dictionary_vec), dictionary_dic, classes_dic
 
-
 def parse_pos_validation(filename):
     """
     pos:
@@ -79,7 +80,6 @@ def parse_pos_validation(filename):
                 tmpdic = {'words': [], 'tags':[], 'wc': 0}
     return sentences
 
-
 def to_dataframe(sentences_as_dict):
     """
     Proposed method for storing the data: in Pandas Dataframe. However
@@ -88,13 +88,10 @@ def to_dataframe(sentences_as_dict):
     """
     return pd.DataFrame(sentences_as_dict)
 
-
-
 def import_data(filename):
     sentences_train, dic_vec, dic_dict = parse_pos_training(filename)
     sentences_train = to_dataframe(sentences_train)
     return sentences_train, dic_vec, dic_dict
-
 
 
 def save_data(out_dir, sentences, lexikon_vec, lexikon_dic):
@@ -139,7 +136,7 @@ def inverted_onehot(sentences, lexikon_dic, maxwc):
 def get_y(sentences, classes):
     y = []
     classcount = len(classes.keys())
-    for sen in sentences:
+    for sentence in sentences:
         ind = 0
         arr = np.zeros(len(sen['tags']))
         for tag in sen['tags']:
@@ -147,11 +144,6 @@ def get_y(sentences, classes):
             ind +=1
         y.append(arr)
     return y
-
-
-
-
-
 
 def main():
     data_dir = os.getenv('DATA_DIR_DL')

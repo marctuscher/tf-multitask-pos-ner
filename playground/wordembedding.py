@@ -5,6 +5,7 @@ import random
 from pprint import pprint
 import tensorflow as tf
 import math
+
 def parse_pos_training(filename):
     """
     pos:

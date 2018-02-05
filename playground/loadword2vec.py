@@ -20,7 +20,7 @@ stimmt. Ihr müsst euch mal das classes dic anschauen und die class_to_int metho
 # TODO Model abspeichern. ausserdem müssten wir auch nicht das komplette model laden sondern könnten das trimmen.
 model = gensim.models.KeyedVectors.load_word2vec_format("/home/marc/Downloads/glove.840B.300d/glove.840B.300d.w2vformat.txt", binary=False)
 print("Imported")
-sentences_train, lexikon_vec, lexikon_dic, classes = parser.parse_pos_training(os.getenv("DATA_DIR_DL")+'/pos/en-dev.txt', model)
+sentences_train, lexikon_vec, lexikon_dic, classes = parser.parse_pos_training(os.getenv("DATA_DIR_DL")+'/pos/en-dev.txt', model.wv.vocab)
 print("Most similar to dog according to embedding:")
 print(model.most_similar("dog"))
 
