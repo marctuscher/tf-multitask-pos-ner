@@ -15,9 +15,10 @@ class Utils:
         """
         Load the glove model from a given path
         """
+        start = time.time()
         print("Started importing Glove Model from textfile")
         self.glove = gensim.models.KeyedVectors.load_word2vec_format(filename, binary=False)
-        print("Finished importing Glove Model")
+        print("Finished importing Glove Model in ", start - time.time(), " seconds")
 
     def save_glove_pkl(self, filename):
         """
@@ -65,7 +66,7 @@ class Utils:
                     word, tag = line.split()
                     if word in self.glove.wv.vocab:
                         tmpdic['words'].append(word)
-                        if word not in dictionary_dic:
+                        if word not in dictionary_dic.keys():
                             dictionary_dic[word]= index
                             index+=1
                         if tag not in classes_dic.keys():
@@ -159,8 +160,8 @@ class Utils:
         """
         l = []
         for sen in sentences:
-            tmp = words2ids(sen["words"], dictionary)
-            tags = tags_to_int(sen["tags"], classes_dic)
+            tmp = self.words2ids(sen["words"], dictionary)
+            tags = self.tags_to_int(sen["tags"], classes_dic)
             l.append((tmp, tags))
         return l
 
@@ -174,7 +175,6 @@ class Utils:
             list of tuples
         """
         x_batch, y_batch = [], []
-
         for (x, y) in data:
             if len(x_batch) == minibatch_size:
                 yield x_batch, y_batch
