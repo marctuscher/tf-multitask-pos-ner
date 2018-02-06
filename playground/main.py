@@ -23,7 +23,7 @@ val = util.sen_dict_to_tuple(sentences_val, lexikon_val_dic, classes_val)
 pos = POSModel(embeddings, len(classes), util)
 pos.build()
 
-pos.train(dev, None)
+pos.train(dev, val)
 
 print(pos.predict_batch([val[0][0]]))
 print(val[0][1])

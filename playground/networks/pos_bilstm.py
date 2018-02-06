@@ -34,9 +34,9 @@ class POSModel():
         self.hidden_size_lstm = 300 # lstm on word embeddings
         self.sess   = None
         self.saver  = None
-        self.nepochs = 10
+        self.nepochs = 100
         self.dir_output = "./out"
-
+        self.dir_model = os.getenv("DATA_DIR_DL")+str("/posmodel/")
 
     def reinitialize_weights(self, scope_name):
         """Reinitializes the weights of a given layer"""
@@ -119,20 +119,20 @@ class POSModel():
                         self.nepochs))
 
             score = self.run_epoch(train, dev, epoch)
-            # self.lr *= self.lr_decay # decay learning rate
+            self.learning_rate *= self.lr_decay # decay learning rate
 
             # early stopping and saving best parameters
-            # if score >= best_score:
-            #     nepoch_no_imprv = 0
-            #     self.save_session()
-            #     best_score = score
-            #     print("- new best score!")
-            # else:
-            #     nepoch_no_imprv += 1
-            #     if nepoch_no_imprv >= self.nepoch_no_imprv:
-            #         print("- early stopping {} epochs without "\
-            #                 "improvement".format(nepoch_no_imprv))
-            #         break
+            if score >= best_score:
+                nepoch_no_imprv = 0
+                self.save_session()
+                best_score = score
+                print("- new best score!")
+            else:
+                nepoch_no_imprv += 1
+                if nepoch_no_imprv >= self.nepoch_no_imprv:
+                    print("- early stopping {} epochs without "\
+                            "improvement".format(nepoch_no_imprv))
+                    break
 
 
     def evaluate(self, test):
@@ -346,11 +346,11 @@ class POSModel():
             if i % 10 == 0:
                 self.file_writer.add_summary(summary, epoch*nbatches + i)
 
-        # metrics = self.run_evaluate(dev)
-        # msg = " - ".join(["{} {:04.2f}".format(k, v)
-        #         for k, v in metrics.items()])
-        # print(msg)
-        # return metrics["f1"]
+        metrics = self.run_evaluate(dev)
+        msg = " - ".join(["{} {:04.2f}".format(k, v)
+                for k, v in metrics.items()])
+        print(msg)
+        return metrics["f1"]
 
 
     def run_evaluate(self, test):
@@ -365,23 +365,16 @@ class POSModel():
         """
         accs = []
         correct_preds, total_correct, total_preds = 0., 0., 0.
-        for words, labels in minibatches(test, self.batch_size):
+        for words, labels in self.utils.minibatches(test, self.batch_size):
             labels_pred, sequence_lengths = self.predict_batch(words)
-
+            correct_preds = 0
+            total_preds = 0
             for lab, lab_pred, length in zip(labels, labels_pred,
                                              sequence_lengths):
-                lab      = lab[:length]
-                lab_pred = lab_pred[:length]
+                correct_preds+= self.evaluate_single_pred(lab, lab_pred)
                 accs    += [a==b for (a, b) in zip(lab, lab_pred)]
-
-                lab_chunks      = set(get_chunks(lab, self.vocab_tags))
-                lab_pred_chunks = set(get_chunks(lab_pred,
-                                                 self.vocab_tags))
-
-                correct_preds += len(lab_chunks & lab_pred_chunks)
-                total_preds   += len(lab_pred_chunks)
-                total_correct += len(lab_chunks)
-
+            total_preds += len(lab_pred)
+            total_correct += correct_preds
         p   = correct_preds / total_preds if correct_preds > 0 else 0
         r   = correct_preds / total_correct if correct_preds > 0 else 0
         f1  = 2 * p * r / (p + r) if correct_preds > 0 else 0
@@ -407,3 +400,21 @@ class POSModel():
         preds = [self.idx_to_tag[idx] for idx in list(pred_ids[0])]
 
         return preds
+
+    def evaluate_single_pred(self, lab, lab_pred):
+        """
+        Returns the number of correct preds in a single sentence
+        """
+        correct=0
+        for i in range(len(lab)):
+            if lab[i] == lab_pred[i]:
+                correct+=1
+
+        return correct
+
+
+    def save_session(self):
+        """Saves session = weights"""
+        if not os.path.exists(self.dir_model):
+            os.makedirs(self.dir_model)
+        self.saver.save(self.sess, self.dir_model)
