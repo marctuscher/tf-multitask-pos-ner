@@ -21,20 +21,19 @@ class POSModel():
         self.embeddings = embeddings
         self.utils = utils
         self.train_embeddings = False
-        self.nepochs = 15
+        self.nepochs = 10
         self.keep_prob = 0.5
         self.batch_size = 16
         self.lr_method = "adam"
         self.learning_rate = 0.001
         self.lr_decay = 0.9
         self.clip = -1  # if negative, no clipping
-        self.nepoch_no_imprv = 3
+        self.nepoch_no_imprv = 100
         # model hyperparameters
         self.hidden_size_char = 100  # lstm on chars
         self.hidden_size_lstm = 300  # lstm on word embeddings
         self.sess = None
         self.saver = None
-        self.nepochs = 100
         self.dir_output = "./out"
         self.dir_model = os.getenv("DATA_DIR_DL") + str("/posmodel/")
 
@@ -364,7 +363,7 @@ class POSModel():
         f1 = 2 * p * r / (p + r) if correct_preds > 0 else 0
         acc = np.mean(accs)
 
-        return {"acc": 100 * acc, "f1": 100 * f1}
+        return {"acc": 100 * acc, "f1": 100 * f1, "total_acc" : p}
 
     def predict(self, words_raw):
         """Returns list of tags

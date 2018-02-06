@@ -174,5 +174,27 @@ class Utils:
         if len(x_batch) != 0:
             yield x_batch, y_batch
 
+    def generate_embeddings(self, dictionaries):
+        """
+        Args:
+             dictionaries: list of dictionaries
+        Returns:
+             merged dictionary and embeddings matrix
+
+        TODO This can be much faster, maybe this function is also useless. For a productive model we need the hole GloVe vocab
+        """
+        res = dict()
+        ind = 0
+        for dic in dictionaries:
+            for key in dic:
+                if key not in res:
+                    res[key] = ind
+                    ind+=1
+        embeddings = np.zeros([len(res), 300])
+        for key in res:
+            word_idx = res[key]
+            embeddings[word_idx] = np.asarray(self.glove[key])
+        return res, embeddings
+
 
 util = Utils()
