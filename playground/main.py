@@ -10,13 +10,14 @@ util.load_glove_pkl(os.getenv("DATA_DIR_DL")+str('/word2vec/glove.pkl'))
 sentences_train, lexikon_dic, classes = util.parse_pos(os.getenv("DATA_DIR_DL")+'/pos/en-dev.txt')
 # sentences_val, lexikon_val_dic, classes_val = util.parse_pos(os.getenv("DATA_DIR_DL")+'/pos/en-test.txt')
 
+print(sentences_train[1])
+print(sentences_train[3])
 embeddings = np.zeros([len(lexikon_dic), 300])
 for word in lexikon_dic:
     word_idx = lexikon_dic[word]
     embeddings[word_idx] = np.asarray(util.glove[word])
 
-
-print(sentences_train[1])
+count = 0
 dev = util.sen_dict_to_tuple(sentences_train, lexikon_dic, classes)
 # val = util.sen_dict_to_tuple(sentences_val, lexikon_val_dic, classes_val)
 pos = POSModel(embeddings, len(classes), util)

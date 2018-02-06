@@ -72,18 +72,18 @@ class Utils:
                         if tag not in classes_dic.keys():
                             classes_dic[tag] = classindex
                             classindex+=1
-                            tmpdic['tags'].append(tag)
+                        tmpdic['tags'].append(tag)
                 else:
                     tmpdic['wc'] = len(tmpdic['words'])
                     for key in tmpdic.keys():
                         tmpdic[key]= np.array(tmpdic[key])
-                        sentences.append(tmpdic)
-                        tmpdic = {'words': [], 'tags':[], 'wc': 0}
+                    sentences.append(tmpdic)
+                    tmpdic = {'words': [], 'tags':[], 'wc': 0}
         print("Imported sentences in ", time.time()-start, " seconds")
         return sentences, dictionary_dic, classes_dic
 
 
-    def _pad_sequences(sequences, pad_tok, max_length):
+    def _pad_sequences(self,sequences, pad_tok, max_length):
         """
         Args:
             sequences: a generator of list or tuple
@@ -111,26 +111,9 @@ class Utils:
         Returns:
             a list of list where each sublist has same length
         """
-        if nlevels == 1:
-            max_length = max(map(lambda x : len(x), sequences))
-            sequence_padded, sequence_length = _pad_sequences(sequences,
+        max_length = max(map(lambda x : len(x), sequences))
+        sequence_padded, sequence_length = self._pad_sequences(sequences,
                                                 pad_tok, max_length)
-
-        elif nlevels == 2:
-            max_length_word = max([max(map(lambda x: len(x), seq))
-                                for seq in sequences])
-            sequence_padded, sequence_length = [], []
-            for seq in sequences:
-                sp, sl = _pad_sequences(seq, pad_tok, max_length_word)
-                sequence_padded += [sp]
-                sequence_length += [sl]
-
-            max_length_sentence = max(map(lambda x : len(x), sequences))
-            sequence_padded, _ = _pad_sequences(sequence_padded,
-                    [pad_tok]*max_length_word, max_length_sentence)
-            sequence_length, _ = _pad_sequences(sequence_length, 0,
-                    max_length_sentence)
-
         return sequence_padded, sequence_length
 
 

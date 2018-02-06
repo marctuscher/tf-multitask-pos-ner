@@ -25,7 +25,7 @@ class POSModel():
         self.keep_prob         = 0.5
         self.batch_size       = 16
         self.lr_method        = "adam"
-        self.lr               = 0.001
+        self.learning_rate               = 0.001
         self.lr_decay         = 0.9
         self.clip             = -1 # if negative, no clipping
         self.nepoch_no_imprv  = 3
@@ -119,20 +119,20 @@ class POSModel():
                         self.nepochs))
 
             score = self.run_epoch(train, dev, epoch)
-            self.lr *= self.lr_decay # decay learning rate
+            # self.lr *= self.lr_decay # decay learning rate
 
             # early stopping and saving best parameters
-            if score >= best_score:
-                nepoch_no_imprv = 0
-                self.save_session()
-                best_score = score
-                print("- new best score!")
-            else:
-                nepoch_no_imprv += 1
-                if nepoch_no_imprv >= self.nepoch_no_imprv:
-                    print("- early stopping {} epochs without "\
-                            "improvement".format(nepoch_no_imprv))
-                    break
+            # if score >= best_score:
+            #     nepoch_no_imprv = 0
+            #     self.save_session()
+            #     best_score = score
+            #     print("- new best score!")
+            # else:
+            #     nepoch_no_imprv += 1
+            #     if nepoch_no_imprv >= self.nepoch_no_imprv:
+            #         print("- early stopping {} epochs without "\
+            #                 "improvement".format(nepoch_no_imprv))
+            #         break
 
 
     def evaluate(self, test):
@@ -336,7 +336,7 @@ class POSModel():
 
         # iterate over dataset
         for i, (words, labels) in enumerate(self.utils.minibatches(train, batch_size)):
-            fd, _ = self.get_feed_dict(words, labels, self.lr,
+            fd, _ = self.get_feed_dict(words, labels, self.learning_rate,
                                        self.keep_prob)
 
             _, train_loss, summary = self.sess.run(
