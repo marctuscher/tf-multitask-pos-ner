@@ -311,9 +311,7 @@ class POSModel():
 
         """
         fd, sequence_lengths = self.get_feed_dict(words, dropout=1.0)
-
         labels_pred = self.sess.run(self.labels_pred, feed_dict=fd)
-
         return labels_pred, sequence_lengths
 
 
