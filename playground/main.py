@@ -7,7 +7,7 @@ util = Utils()
 
 util.load_glove_pkl(os.getenv("DATA_DIR_DL")+str('/word2vec/glove.pkl'))
 # util.load_glove_txt(os.getenv("DATA_DIR_DL")+str('/word2vec/glove.840B.300d.w2vformat.txt'))
-sentences_train, lexikon_dic, classes = util.parse_pos(os.getenv("DATA_DIR_DL")+'/pos/en-dev.txt')
+sentences_train, lexikon_dic, classes = util.parse_pos(os.getenv("DATA_DIR_DL")+'/pos/en-train.txt')
 sentences_val, lexikon_val_dic, classes_val = util.parse_pos(os.getenv("DATA_DIR_DL")+'/pos/en-test.txt')
 
 print(sentences_train[1])

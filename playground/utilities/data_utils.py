@@ -77,8 +77,11 @@ class Utils:
                     tmpdic['wc'] = len(tmpdic['words'])
                     for key in tmpdic.keys():
                         tmpdic[key]= np.array(tmpdic[key])
-                    sentences.append(tmpdic)
-                    tmpdic = {'words': [], 'tags':[], 'wc': 0}
+                    if tmpdic['wc'] == 0:
+                        tmpdic = {'words': [], 'tags':[], 'wc': 0}
+                    else:
+                        sentences.append(tmpdic)
+                        tmpdic = {'words': [], 'tags':[], 'wc': 0}
         print("Imported sentences in ", time.time()-start, " seconds")
         return sentences, dictionary_dic, classes_dic
 
