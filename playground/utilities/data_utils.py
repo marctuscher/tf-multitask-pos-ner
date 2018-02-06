@@ -173,3 +173,6 @@ class Utils:
 
         if len(x_batch) != 0:
             yield x_batch, y_batch
+
+
+util = Utils()

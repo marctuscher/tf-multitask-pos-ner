@@ -6,7 +6,9 @@ from numba import jit
 import tensorflow as tf
 import pickle
 
-def parse_pos_training(filename, vocab):
+### CURRENTLY NOT USED, see utilities/data_utils.py
+
+def parse_pos_training(filename, model):
     """
     pos:
     POS tags are according to the Penn Treebank POS tagset: https://www.ling.upenn.edu/courses/Fall_2003/ling001/penn_treebank_pos.html

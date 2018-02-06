@@ -21,29 +21,28 @@ class POSModel():
         self.embeddings = embeddings
         self.utils = utils
         self.train_embeddings = False
-        self.nepochs          = 15
-        self.keep_prob         = 0.5
-        self.batch_size       = 16
-        self.lr_method        = "adam"
-        self.learning_rate               = 0.001
-        self.lr_decay         = 0.9
-        self.clip             = -1 # if negative, no clipping
-        self.nepoch_no_imprv  = 3
+        self.nepochs = 15
+        self.keep_prob = 0.5
+        self.batch_size = 16
+        self.lr_method = "adam"
+        self.learning_rate = 0.001
+        self.lr_decay = 0.9
+        self.clip = -1  # if negative, no clipping
+        self.nepoch_no_imprv = 3
         # model hyperparameters
-        self.hidden_size_char = 100 # lstm on chars
-        self.hidden_size_lstm = 300 # lstm on word embeddings
-        self.sess   = None
-        self.saver  = None
+        self.hidden_size_char = 100  # lstm on chars
+        self.hidden_size_lstm = 300  # lstm on word embeddings
+        self.sess = None
+        self.saver = None
         self.nepochs = 100
         self.dir_output = "./out"
-        self.dir_model = os.getenv("DATA_DIR_DL")+str("/posmodel/")
+        self.dir_model = os.getenv("DATA_DIR_DL") + str("/posmodel/")
 
     def reinitialize_weights(self, scope_name):
         """Reinitializes the weights of a given layer"""
         variables = tf.contrib.framework.get_variables(scope_name)
         init = tf.variables_initializer(variables)
         self.sess.run(init)
-
 
     def add_train_op(self, lr_method, lr, loss, clip=-1):
         """Defines self.train_op that performs an update on a batch
@@ -55,10 +54,10 @@ class POSModel():
             clip: (python float) clipping of gradient. If < 0, no clipping
 
         """
-        _lr_m = lr_method.lower() # lower to make sure
+        _lr_m = lr_method.lower()  # lower to make sure
 
         with tf.variable_scope("train_step"):
-            if _lr_m == 'adam': # sgd method
+            if _lr_m == 'adam':  # sgd method
                 optimizer = tf.train.AdamOptimizer(lr)
             elif _lr_m == 'adagrad':
                 optimizer = tf.train.AdagradOptimizer(lr)
@@ -69,13 +68,12 @@ class POSModel():
             else:
                 raise NotImplementedError("Unknown method {}".format(_lr_m))
 
-            if clip > 0: # gradient clipping if clip is positive
-                grads, vs     = zip(*optimizer.compute_gradients(loss))
-                grads, gnorm  = tf.clip_by_global_norm(grads, clip)
+            if clip > 0:  # gradient clipping if clip is positive
+                grads, vs = zip(*optimizer.compute_gradients(loss))
+                grads, gnorm = tf.clip_by_global_norm(grads, clip)
                 self.train_op = optimizer.apply_gradients(zip(grads, vs))
             else:
                 self.train_op = optimizer.minimize(loss)
-
 
     def initialize_session(self):
         """Defines self.sess and initialize the variables"""
@@ -84,11 +82,9 @@ class POSModel():
         self.sess.run(tf.global_variables_initializer())
         self.saver = tf.train.Saver()
 
-
     def close_session(self):
         """Closes the session"""
         self.sess.close()
-
 
     def add_summary(self):
         """Defines variables for Tensorboard
@@ -97,10 +93,9 @@ class POSModel():
             dir_output: (string) where the results are written
 
         """
-        self.merged      = tf.summary.merge_all()
+        self.merged = tf.summary.merge_all()
         self.file_writer = tf.summary.FileWriter(self.dir_output,
-                self.sess.graph)
-
+                                                 self.sess.graph)
 
     def train(self, train, dev):
         """Performs training with early stopping and lr exponential decay
@@ -111,15 +106,15 @@ class POSModel():
 
         """
         best_score = 0
-        nepoch_no_imprv = 0 # for early stopping
-        self.add_summary() # tensorboard
+        nepoch_no_imprv = 0  # for early stopping
+        self.add_summary()  # tensorboard
 
         for epoch in range(self.nepochs):
             print("Epoch {:} out of {:}".format(epoch + 1,
-                        self.nepochs))
+                                                self.nepochs))
 
             score = self.run_epoch(train, dev, epoch)
-            self.learning_rate *= self.lr_decay # decay learning rate
+            self.learning_rate *= self.lr_decay  # decay learning rate
 
             # early stopping and saving best parameters
             if score >= best_score:
@@ -130,10 +125,9 @@ class POSModel():
             else:
                 nepoch_no_imprv += 1
                 if nepoch_no_imprv >= self.nepoch_no_imprv:
-                    print("- early stopping {} epochs without "\
-                            "improvement".format(nepoch_no_imprv))
+                    print("- early stopping {} epochs without " \
+                          "improvement".format(nepoch_no_imprv))
                     break
-
 
     def evaluate(self, test):
         """Evaluate model on test set
@@ -145,38 +139,36 @@ class POSModel():
         print("Testing model over test set")
         metrics = self.run_evaluate(test)
         msg = " - ".join(["{} {:04.2f}".format(k, v)
-                for k, v in metrics.items()])
+                          for k, v in metrics.items()])
         print(msg)
-
 
     def add_placeholders(self):
         """Define placeholders = entries to computational graph"""
         # shape = (batch size, max length of sentence in batch)
         self.word_ids = tf.placeholder(tf.int32, shape=[None, None],
-                        name="word_ids")
+                                       name="word_ids")
 
         # shape = (batch size)
         self.sequence_lengths = tf.placeholder(tf.int32, shape=[None],
-                        name="sequence_lengths")
+                                               name="sequence_lengths")
 
         # shape = (batch size, max length of sentence, max length of word)
         self.char_ids = tf.placeholder(tf.int32, shape=[None, None, None],
-                        name="char_ids")
+                                       name="char_ids")
 
         # shape = (batch_size, max_length of sentence)
         self.word_lengths = tf.placeholder(tf.int32, shape=[None, None],
-                        name="word_lengths")
+                                           name="word_lengths")
 
         # shape = (batch size, max length of sentence in batch)
         self.labels = tf.placeholder(tf.int32, shape=[None, None],
-                        name="labels")
+                                     name="labels")
 
         # hyper parameters
         self.dropout = tf.placeholder(dtype=tf.float32, shape=[],
-                        name="dropout")
+                                      name="dropout")
         self.lr = tf.placeholder(dtype=tf.float32, shape=[],
-                        name="lr")
-
+                                 name="lr")
 
     def get_feed_dict(self, words, labels=None, lr=None, dropout=None):
         """Given some data, pad it and build a feed dictionary
@@ -212,7 +204,6 @@ class POSModel():
 
         return feed, sequence_lengths
 
-
     def add_word_embeddings_op(self):
         """Defines self.word_embeddings
 
@@ -222,16 +213,15 @@ class POSModel():
         the correct shape is initialized.
         """
         _word_embeddings = tf.Variable(
-                self.embeddings,
-                name="word_embeddings_v",
-                dtype=tf.float32,
-                trainable=self.train_embeddings)
+            self.embeddings,
+            name="word_embeddings_v",
+            dtype=tf.float32,
+            trainable=self.train_embeddings)
 
         word_embeddings = tf.nn.embedding_lookup(_word_embeddings,
-                self.word_ids, name="word_embeddings")
+                                                 self.word_ids, name="word_embeddings")
 
-        self.word_embeddings =  tf.nn.dropout(word_embeddings, self.dropout)
-
+        self.word_embeddings = tf.nn.dropout(word_embeddings, self.dropout)
 
     def add_logits_op(self):
         """Defines self.logits
@@ -243,23 +233,22 @@ class POSModel():
             cell_fw = tf.contrib.rnn.LSTMCell(self.hidden_size_lstm)
             cell_bw = tf.contrib.rnn.LSTMCell(self.hidden_size_lstm)
             (output_fw, output_bw), _ = tf.nn.bidirectional_dynamic_rnn(
-                    cell_fw, cell_bw, self.word_embeddings,
-                    sequence_length=self.sequence_lengths, dtype=tf.float32)
+                cell_fw, cell_bw, self.word_embeddings,
+                sequence_length=self.sequence_lengths, dtype=tf.float32)
             output = tf.concat([output_fw, output_bw], axis=-1)
             output = tf.nn.dropout(output, self.dropout)
 
         with tf.variable_scope("proj"):
             W = tf.get_variable("W", dtype=tf.float32,
-                    shape=[2*self.hidden_size_lstm, self.ntags])
+                                shape=[2 * self.hidden_size_lstm, self.ntags])
 
             b = tf.get_variable("b", shape=[self.ntags],
-                    dtype=tf.float32, initializer=tf.zeros_initializer())
+                                dtype=tf.float32, initializer=tf.zeros_initializer())
 
             nsteps = tf.shape(output)[1]
-            output = tf.reshape(output, [-1, 2*self.hidden_size_lstm])
+            output = tf.reshape(output, [-1, 2 * self.hidden_size_lstm])
             pred = tf.matmul(output, W) + b
-            self.logits = tf.reshape(pred, [-1, nsteps,self.ntags])
-
+            self.logits = tf.reshape(pred, [-1, nsteps, self.ntags])
 
     def add_pred_op(self):
         """Defines self.labels_pred
@@ -273,18 +262,16 @@ class POSModel():
         self.labels_pred = tf.cast(tf.argmax(self.logits, axis=-1),
                                    tf.int32)
 
-
     def add_loss_op(self):
         """Defines the loss"""
         losses = tf.nn.sparse_softmax_cross_entropy_with_logits(
-                logits=self.logits, labels=self.labels)
+            logits=self.logits, labels=self.labels)
         mask = tf.sequence_mask(self.sequence_lengths)
         losses = tf.boolean_mask(losses, mask)
         self.loss = tf.reduce_mean(losses)
 
         # for tensorboard
         tf.summary.scalar("loss", self.loss)
-
 
     def build(self):
         # NER specific functions
@@ -296,9 +283,8 @@ class POSModel():
 
         # Generic functions that add training op and initialize session
         self.add_train_op(self.lr_method, self.lr, self.loss,
-                self.clip)
-        self.initialize_session() # now self.sess is defined and vars are init
-
+                          self.clip)
+        self.initialize_session()  # now self.sess is defined and vars are init
 
     def predict_batch(self, words):
         """
@@ -313,7 +299,6 @@ class POSModel():
         fd, sequence_lengths = self.get_feed_dict(words, dropout=1.0)
         labels_pred = self.sess.run(self.labels_pred, feed_dict=fd)
         return labels_pred, sequence_lengths
-
 
     def run_epoch(self, train, dev, epoch):
         """Performs one complete pass over the train set and evaluate on dev
@@ -338,20 +323,19 @@ class POSModel():
                                        self.keep_prob)
 
             _, train_loss, summary = self.sess.run(
-                    [self.train_op, self.loss, self.merged], feed_dict=fd)
+                [self.train_op, self.loss, self.merged], feed_dict=fd)
 
             prog.update(i + 1, [("train loss", train_loss)])
 
             # tensorboard
             if i % 10 == 0:
-                self.file_writer.add_summary(summary, epoch*nbatches + i)
+                self.file_writer.add_summary(summary, epoch * nbatches + i)
 
         metrics = self.run_evaluate(dev)
         msg = " - ".join(["{} {:04.2f}".format(k, v)
-                for k, v in metrics.items()])
+                          for k, v in metrics.items()])
         print(msg)
         return metrics["f1"]
-
 
     def run_evaluate(self, test):
         """Evaluates performance on test set
@@ -371,17 +355,16 @@ class POSModel():
             total_preds = 0
             for lab, lab_pred, length in zip(labels, labels_pred,
                                              sequence_lengths):
-                correct_preds+= self.evaluate_single_pred(lab, lab_pred)
-                accs    += [a==b for (a, b) in zip(lab, lab_pred)]
+                correct_preds += self.evaluate_single_pred(lab, lab_pred)
+                accs += [a == b for (a, b) in zip(lab, lab_pred)]
             total_preds += len(lab_pred)
             total_correct += correct_preds
-        p   = correct_preds / total_preds if correct_preds > 0 else 0
-        r   = correct_preds / total_correct if correct_preds > 0 else 0
-        f1  = 2 * p * r / (p + r) if correct_preds > 0 else 0
+        p = correct_preds / total_preds if correct_preds > 0 else 0
+        r = correct_preds / total_correct if correct_preds > 0 else 0
+        f1 = 2 * p * r / (p + r) if correct_preds > 0 else 0
         acc = np.mean(accs)
 
-        return {"acc": 100*acc, "f1": 100*f1}
-
+        return {"acc": 100 * acc, "f1": 100 * f1}
 
     def predict(self, words_raw):
         """Returns list of tags
@@ -405,13 +388,12 @@ class POSModel():
         """
         Returns the number of correct preds in a single sentence
         """
-        correct=0
+        correct = 0
         for i in range(len(lab)):
             if lab[i] == lab_pred[i]:
-                correct+=1
+                correct += 1
 
         return correct
-
 
     def save_session(self):
         """Saves session = weights"""

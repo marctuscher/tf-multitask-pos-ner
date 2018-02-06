@@ -1,6 +1,6 @@
 import time
 import argparse
-
+### CURRENTLY NOT USED, see utilities/data_utils.py
 POS, NER = 0, 1
 
 def determine_type(name):
