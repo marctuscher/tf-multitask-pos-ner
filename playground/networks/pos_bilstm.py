@@ -21,7 +21,7 @@ class POSModel():
         self.embeddings = embeddings
         self.utils = utils
         self.train_embeddings = False
-        self.nepochs = 10
+        self.nepochs =5
         self.keep_prob = 0.5
         self.batch_size = 16
         self.lr_method = "adam"

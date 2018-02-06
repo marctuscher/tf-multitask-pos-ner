@@ -13,7 +13,7 @@ def main():
     dictionary, embeddings = util.generate_embeddings([lexicon_dic, lexikon_val_dic])
 
     dev = util.sen_dict_to_tuple(sentences_train, dictionary, classes)
-    val = util.sen_dict_to_tuple(sentences_val, dictionary, classes_val)
+    val = util.sen_dict_to_tuple(sentences_val, dictionary, classes)
     pos = POSModel(embeddings, len(classes), util)
     pos.build()
 
