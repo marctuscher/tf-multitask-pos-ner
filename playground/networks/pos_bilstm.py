@@ -334,7 +334,7 @@ class POSModel():
         msg = " - ".join(["{} {:04.2f}".format(k, v)
                           for k, v in metrics.items()])
         print(msg)
-        return metrics["f1"]
+        return metrics["acc"]
 
     def run_evaluate(self, test):
         """Evaluates performance on test set
@@ -358,12 +358,9 @@ class POSModel():
                 accs += [a == b for (a, b) in zip(lab, lab_pred)]
             total_preds += len(lab_pred)
             total_correct += correct_preds
-        p = correct_preds / total_preds if correct_preds > 0 else 0
-        r = correct_preds / total_correct if correct_preds > 0 else 0
-        f1 = 2 * p * r / (p + r) if correct_preds > 0 else 0
         acc = np.mean(accs)
 
-        return {"acc": 100 * acc, "f1": 100 * f1, "total_acc" : p}
+        return {"acc": 100 * acc}
 
     def predict(self, words_raw):
         """Returns list of tags
