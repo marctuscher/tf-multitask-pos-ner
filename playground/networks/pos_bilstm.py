@@ -92,7 +92,7 @@ class POSModel():
 
         """
         self.merged = tf.summary.merge_all()
-        self.file_writer = tf.summary.FileWriter(self.dir_output,
+        self.file_writer = tf.summary.FileWriter(self.dir_output+"/train",
                                                  self.sess.graph)
 
     def train(self, train, dev):
@@ -111,21 +111,28 @@ class POSModel():
             print("Epoch {:} out of {:}".format(epoch + 1,
                                                 self.nepochs))
 
-            score = self.run_epoch(train, dev, epoch)
+            self.run_epoch(train, dev, epoch)
             self.learning_rate *= self.lr_decay  # decay learning rate
 
-            # early stopping and saving best parameters
-            if score >= best_score:
-                nepoch_no_imprv = 0
-                self.save_session()
-                best_score = score
-                print("- new best score!")
-            else:
-                nepoch_no_imprv += 1
-                if nepoch_no_imprv >= self.nepoch_no_imprv:
-                    print("- early stopping {} epochs without " \
-                          "improvement".format(nepoch_no_imprv))
-                    break
+            if epoch % 2 == 0:
+
+                metrics = self.run_evaluate(dev)
+                msg = " - ".join(["{} {:04.2f}".format(k, v)
+                          for k, v in metrics.items()])
+                print(msg)
+                self.file_writer.add_summary(tf.Summary(value=[tf.Summary.Value(tag="accuracy", simple_value=metrics["acc"])]), epoch)
+                # early stopping and saving best parameters
+                if metrics["acc"]  >= best_score:
+                    nepoch_no_imprv = 0
+                    self.save_session()
+                    best_score = metrics["acc"]
+                    print("- new best score!")
+                else:
+                    nepoch_no_imprv += 1
+                    if nepoch_no_imprv >= self.nepoch_no_imprv:
+                        print("- early stopping {} epochs without " \
+                              "improvement".format(nepoch_no_imprv))
+                        break
 
     def evaluate(self, test):
         """Evaluate model on test set
@@ -262,7 +269,6 @@ class POSModel():
 
         # Scalars for tensorboard
         tf.summary.scalar("loss", self.loss)
-        tf.summary.scalar("accuracy", self.acc)
     def build(self):
         """
         Build the computational graph with functions defined earlier
@@ -320,11 +326,6 @@ class POSModel():
             if i % 10 == 0:
                 self.file_writer.add_summary(summary, epoch * nbatches + i)
 
-        metrics = self.run_evaluate(dev)
-        msg = " - ".join(["{} {:04.2f}".format(k, v)
-                          for k, v in metrics.items()])
-        print(msg)
-        return metrics["acc"]
 
     def run_evaluate(self, test):
         """Evaluates performance on test set
@@ -344,7 +345,6 @@ class POSModel():
                 accs += [a == b for (a, b) in zip(lab, lab_pred)]
         acc = np.mean(accs)
         # set self.acc for Tensorboard visualization
-        self.acc = acc
         return {"acc": 100 * acc}
 
 
