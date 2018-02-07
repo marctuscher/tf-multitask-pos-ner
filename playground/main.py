@@ -19,8 +19,19 @@ def main():
 
     pos.train(dev, val)
 
-    print(pos.predict_batch([val[0][0]]))
-    print(val[0][1])
+    # invert class dict (idx as key,tag as value)
+    inv_classes = {idx: tag for tag, idx in classes.items()}
+
+    sentence = ' '.join(sentences_val[0]['words'])
+    print("test sentence: ", sentence)    
+    predicted_tags_idxs = pos.predict_batch([val[0][0]])
+    predicted_tags = [inv_classes[tag_idx] for tag_idx in predicted_tags_idxs[0][0].tolist()]
+    print("predicted tags: ", predicted_tags)
+    #correct_tags_idxs = val[0][1]
+    #correct_tags = [inv_classes[tag_idx] for tag_idx in correct_tags_idxs]
+    print("correct tags: ", sentences_val[0]['tags'])
+
+
 
 if __name__ == '__main__':
     main()
