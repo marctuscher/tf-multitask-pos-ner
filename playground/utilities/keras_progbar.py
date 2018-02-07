@@ -66,10 +66,14 @@ class Progbar(object):
             prog = float(current)/self.target
             prog_width = int(self.width*prog)
             if prog_width > 0:
-                bar += ('='*(prog_width-1))
+                bar += ('='*(prog_width-3))
                 if current < self.target:
-                    bar += '>'
+                    bar+=';'
+                    bar+='-'
+                    bar += ')'
                 else:
+                    bar+='='
+                    bar+='='
                     bar += '='
             bar += ('.'*(self.width-prog_width))
             bar += ']'
