@@ -1,41 +1,40 @@
 import numpy as np
 import os
 import tensorflow as tf
+import shutil
 
 from utilities.keras_progbar import Progbar
 
 
 class POSModel():
-    """Specialized class of Model for NER"""
 
     def __init__(self, embeddings, ntags, utils):
-        """Defines self.config and self.logger
-
-        Args:
-            config: (Config instance) class with hyper parameters,
-                vocab and embeddings
-
+        """
+        Defines the hyperparameters
         """
         # training
         self.ntags = ntags
         self.embeddings = embeddings
         self.utils = utils
         self.train_embeddings = False
-        self.nepochs =5
+        self.nepochs =100
         self.keep_prob = 0.5
         self.batch_size = 16
         self.lr_method = "adam"
         self.learning_rate = 0.001
         self.lr_decay = 0.9
         self.clip = -1  # if negative, no clipping
-        self.nepoch_no_imprv = 100
+        self.nepoch_no_imprv = 5
         # model hyperparameters
-        self.hidden_size_char = 100  # lstm on chars
         self.hidden_size_lstm = 300  # lstm on word embeddings
         self.sess = None
         self.saver = None
+        # delete ./out so
+        if os.path.isdir("./out"):
+            shutil.rmtree("./out")
         self.dir_output = "./out"
-        self.dir_model = os.getenv("DATA_DIR_DL") + str("/posmodel/")
+        self.dir_model = os.getenv("HOME") + str("/tmp/posmodel/model.ckpt")
+        self.acc = 0
 
     def reinitialize_weights(self, scope_name):
         """Reinitializes the weights of a given layer"""
@@ -205,11 +204,9 @@ class POSModel():
 
     def add_word_embeddings_op(self):
         """Defines self.word_embeddings
-
-        If self.config.embeddings is not None and is a np array initialized
-        with pre-trained word vectors, the word embeddings is just a look-up
-        and we don't train the vectors. Otherwise, a random matrix with
-        the correct shape is initialized.
+        This is a lookup tensor where each word_id corresponds to an index in this lookup tensor.
+        Each index holds a 300-dim vector representing the GloVe word embedding of the word corresponding to this
+        word_id in our dictionary
         """
         _word_embeddings = tf.Variable(
             self.embeddings,
@@ -223,10 +220,8 @@ class POSModel():
         self.word_embeddings = tf.nn.dropout(word_embeddings, self.dropout)
 
     def add_logits_op(self):
-        """Defines self.logits
-
-        For each word in each sentence of the batch, it corresponds to a vector
-        of scores, of dimension equal to the number of tags.
+        """
+        Adds the bi-lstm layer and a fully connected layer with softmax output to the graph.
         """
         with tf.variable_scope("bi-lstm"):
             cell_fw = tf.contrib.rnn.LSTMCell(self.hidden_size_lstm)
@@ -251,39 +246,35 @@ class POSModel():
 
     def add_pred_op(self):
         """Defines self.labels_pred
-
-        This op is defined only in the case where we don't use a CRF since in
-        that case we can make the prediction "in the graph" (thanks to tf
-        functions in other words). With theCRF, as the inference is coded
-        in python and not in pure tensroflow, we have to make the prediciton
-        outside the graph.
+        Gets int labels from the output of the softmax layer. The predicted label is
+        the argmax of this layer
         """
         self.labels_pred = tf.cast(tf.argmax(self.logits, axis=-1),
                                    tf.int32)
 
     def add_loss_op(self):
-        """Defines the loss"""
+        """Losses for training"""
         losses = tf.nn.sparse_softmax_cross_entropy_with_logits(
             logits=self.logits, labels=self.labels)
         mask = tf.sequence_mask(self.sequence_lengths)
         losses = tf.boolean_mask(losses, mask)
         self.loss = tf.reduce_mean(losses)
 
-        # for tensorboard
+        # Scalars for tensorboard
         tf.summary.scalar("loss", self.loss)
-
+        tf.summary.scalar("accuracy", self.acc)
     def build(self):
-        # NER specific functions
+        """
+        Build the computational graph with functions defined earlier
+        """
         self.add_placeholders()
         self.add_word_embeddings_op()
         self.add_logits_op()
         self.add_pred_op()
         self.add_loss_op()
-
-        # Generic functions that add training op and initialize session
         self.add_train_op(self.lr_method, self.lr, self.loss,
                           self.clip)
-        self.initialize_session()  # now self.sess is defined and vars are init
+        self.initialize_session()
 
     def predict_batch(self, words):
         """
@@ -293,22 +284,22 @@ class POSModel():
         Returns:
             labels_pred: list of labels for each sentence
             sequence_length
-
+        Predict a batch of sentences (list of word_ids)
         """
         fd, sequence_lengths = self.get_feed_dict(words, dropout=1.0)
         labels_pred = self.sess.run(self.labels_pred, feed_dict=fd)
         return labels_pred, sequence_lengths
 
     def run_epoch(self, train, dev, epoch):
-        """Performs one complete pass over the train set and evaluate on dev
+        """Performs one complete epoch over the dataset
 
         Args:
-            train: dataset that yields tuple of sentences, tags
-            dev: dataset
+            train: dataset for training that yields tuple of sentences, tags
+            dev: dataset for evaluation that yields tuple of sentences, tags
             epoch: (int) index of the current epoch
 
         Returns:
-            f1: (python float), score to select model on, higher is better
+            acc: (float) current accuracy score over evaluation dataset
 
         """
         # progbar stuff for logging
@@ -316,7 +307,6 @@ class POSModel():
         nbatches = (len(train) + batch_size - 1) // batch_size
         prog = Progbar(target=nbatches)
 
-        # iterate over dataset
         for i, (words, labels) in enumerate(self.utils.minibatches(train, batch_size)):
             fd, _ = self.get_feed_dict(words, labels, self.learning_rate,
                                        self.keep_prob)
@@ -347,49 +337,16 @@ class POSModel():
 
         """
         accs = []
-        correct_preds, total_correct, total_preds = 0., 0., 0.
         for words, labels in self.utils.minibatches(test, self.batch_size):
             labels_pred, sequence_lengths = self.predict_batch(words)
-            correct_preds = 0
-            total_preds = 0
             for lab, lab_pred, length in zip(labels, labels_pred,
                                              sequence_lengths):
-                correct_preds += self.evaluate_single_pred(lab, lab_pred)
                 accs += [a == b for (a, b) in zip(lab, lab_pred)]
-            total_preds += len(lab_pred)
-            total_correct += correct_preds
         acc = np.mean(accs)
-
+        # set self.acc for Tensorboard visualization
+        self.acc = acc
         return {"acc": 100 * acc}
 
-    def predict(self, words_raw):
-        """Returns list of tags
-
-        Args:
-            words_raw: list of words (string), just one sentence (no batch)
-
-        Returns:
-            preds: list of tags (string), one for each word in the sentence
-
-        """
-        words = [self.processing_word(w) for w in words_raw]
-        if type(words[0]) == tuple:
-            words = zip(*words)
-        pred_ids, _ = self.predict_batch([words])
-        preds = [self.idx_to_tag[idx] for idx in list(pred_ids[0])]
-
-        return preds
-
-    def evaluate_single_pred(self, lab, lab_pred):
-        """
-        Returns the number of correct preds in a single sentence
-        """
-        correct = 0
-        for i in range(len(lab)):
-            if lab[i] == lab_pred[i]:
-                correct += 1
-
-        return correct
 
     def save_session(self):
         """Saves session = weights"""
