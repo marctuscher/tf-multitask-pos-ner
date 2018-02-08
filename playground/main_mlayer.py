@@ -1,6 +1,6 @@
 from utilities.data_utils import util
 import os
-from networks.pos_bilstm import POSModel
+from networks.mlayer_bilstm import POSModel
 import numpy as np
 
 def main():

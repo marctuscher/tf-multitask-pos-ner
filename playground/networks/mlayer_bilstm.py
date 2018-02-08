@@ -239,6 +239,15 @@ class POSModel():
             output = tf.concat([output_fw, output_bw], axis=-1)
             output = tf.nn.dropout(output, self.dropout)
 
+        with tf.variable_scope("bi-lstm2"):
+            cell_fw = tf.contrib.rnn.LSTMCell(self.hidden_size_lstm)
+            cell_bw = tf.contrib.rnn.LSTMCell(self.hidden_size_lstm)
+            (output_fw, output_bw), _ = tf.nn.bidirectional_dynamic_rnn(
+                cell_fw, cell_bw, output,
+                sequence_length=self.sequence_lengths, dtype=tf.float32)
+            output = tf.concat([output_fw, output_bw], axis=-1)
+            output = tf.nn.dropout(output, self.dropout)
+
         with tf.variable_scope("proj"):
             W = tf.get_variable("W", dtype=tf.float32,
                                 shape=[2 * self.hidden_size_lstm, self.ntags])
