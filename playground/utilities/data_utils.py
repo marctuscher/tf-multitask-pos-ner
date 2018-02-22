@@ -110,7 +110,7 @@ class Utils:
         index = 0
         classes_dic = {}
         classindex = 0
-        with open('dev.iob', 'r', encoding='utf-8') as file:
+        with open(filename, 'r', encoding='utf-8') as file:
             for line in file:
                 # if '-DOCSTART-' in line:
                 #    continue
@@ -226,6 +226,45 @@ class Utils:
 
         if len(x_batch) != 0:
             yield x_batch, y_batch
+
+    def mixed_minibatches(self, data_pos, data_ner, minibatch_size):
+        """
+        Args:
+            data: generator of (sentence, tags) tuples
+            minibatch_size: (int)
+        Yields:
+            list of tuples
+        """
+        stopped = False
+        state = 'pos'
+        pos_iter = iter(data_pos)
+        ner_iter = iter(data_ner)
+        x_batch, y_batch = [], []
+        pos, ner = True, True
+        while pos or ner:
+            if state =="pos":
+                while len(x_batch) < minibatch_size:
+                    try:
+                        (x,y) = next(pos_iter)
+                        x_batch+=[x]
+                        y_batch+=[y]
+                    except StopIteration:
+                        pos = False
+                yield x_batch, y_batch, "pos"
+                x_batchy,y_batch =[],[]
+                state = "ner"
+
+            if state =="ner":
+                while len(x_batch) < minibatch_size:
+                    try:
+                        (x,y) = next(ner_iter)
+                        x_batch+=[x]
+                        y_batch+=[y]
+                    except StopIteration:
+                        ner = False
+                yield x_batch, y_batch, "ner"
+                x_batchy,y_batch =[],[]
+                state = "pos"
 
     def generate_embeddings(self, dictionaries):
         """
