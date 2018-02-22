@@ -228,12 +228,33 @@ class Utils:
             yield x_batch, y_batch
 
     def mixed_minibatches(self, data_pos, data_ner, minibatch_size):
+        is_pos = True
+        generator_pos = iter(self.minibatches(data_pos, minibatch_size))
+        generator_ner = iter(self.minibatches(data_ner, minibatch_size))
+        while True:
+            if is_pos:
+                try:
+                    x_batch, y_batch = next(generator_pos)
+                    yield x_batch, y_batch, "pos"
+                except StopIteration:
+                    break
+            else:
+                try:
+                    x_batch, y_batch = next (generator_ner)
+                    yield x_batch, y_batch, "ner"
+                except StopIteration:
+                    break
+            is_pos = not is_pos
+
+    def old_mixed_minibatches(self, data_pos, data_ner, minibatch_size):
         """
         Args:
             data: generator of (sentence, tags) tuples
             minibatch_size: (int)
         Yields:
             list of tuples
+
+        in every iteration, yield (in an alternating fashion) minibatches for PoS and NER
         """
         stopped = False
         state = 'pos'
@@ -250,8 +271,9 @@ class Utils:
                         y_batch+=[y]
                     except StopIteration:
                         pos = False
+                print("Mixed minibatch yielding:", len(x_batch), y_batch.__len__())
                 yield x_batch, y_batch, "pos"
-                x_batchy,y_batch =[],[]
+                x_batch,y_batch =[],[]
                 state = "ner"
 
             if state =="ner":
@@ -263,7 +285,7 @@ class Utils:
                     except StopIteration:
                         ner = False
                 yield x_batch, y_batch, "ner"
-                x_batchy,y_batch =[],[]
+                x_batch,y_batch =[],[]
                 state = "pos"
 
     def generate_embeddings(self, dictionaries):

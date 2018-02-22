@@ -2,6 +2,7 @@ import numpy as np
 import os
 import tensorflow as tf
 import shutil
+from random import shuffle
 
 from utilities.keras_progbar import Progbar
 
@@ -20,7 +21,7 @@ class POSModel():
         self.train_embeddings = False
         self.nepochs =10
         self.keep_prob = 0.5
-        self.batch_size = 256
+        self.batch_size = 128
         self.lr_method = "adam"
         self.learning_rate = 0.001
         self.lr_decay = 0.9
@@ -118,25 +119,25 @@ class POSModel():
             self.run_epoch(train_pos, dev_pos,train_ner, dev_ner, epoch)
             self.learning_rate *= self.lr_decay  # decay learning rate
 
-            # if epoch % 2 == 0:
+            if epoch % 2 == 0:
 
-            #     metrics = self.run_evaluate(dev)
-            #     msg = " - ".join(["{} {:04.2f}".format(k, v)
-            #               for k, v in metrics.items()])
-            #     print(msg)
-            #     self.file_writer.add_summary(tf.Summary(value=[tf.Summary.Value(tag="accuracy", simple_value=metrics["acc"])]), epoch)
-            #     # early stopping and saving best parameters
-            #     if metrics["acc"]  >= best_score:
-            #         nepoch_no_imprv = 0
-            #         self.save_session()
-            #         best_score = metrics["acc"]
-            #         print("- new best score!")
-            #     else:
-            #         nepoch_no_imprv += 1
-            #         if nepoch_no_imprv >= self.nepoch_no_imprv:
-            #             print("- early stopping {} epochs without " \
-            #                   "improvement".format(nepoch_no_imprv))
-            #             break
+                metrics_pos = self.run_evaluate(dev_ner, not True)
+                msg = " - ".join(["{} {:04.2f}".format(k, v)
+                          for k, v in metrics_pos.items()])
+                print(msg)
+                # self.file_writer.add_summary(tf.Summary(value=[tf.Summary.Value(tag="accuracy", simple_value=metrics_pos["acc"])]), epoch)
+                # early stopping and saving best parameters
+                if metrics_pos["acc"]  >= best_score:
+                    nepoch_no_imprv = 0
+                    self.save_session()
+                    best_score = metrics_pos["acc"]
+                    print("- new best score!")
+                else:
+                    nepoch_no_imprv += 1
+                    if nepoch_no_imprv >= self.nepoch_no_imprv:
+                        print("- early stopping {} epochs without " \
+                              "improvement".format(nepoch_no_imprv))
+                        break
 
     def evaluate(self, test):
         """Evaluate model on test set
@@ -244,50 +245,52 @@ class POSModel():
             output = tf.nn.dropout(output, self.dropout)
 
         with tf.variable_scope("pos"):
-            W = tf.get_variable("W", dtype=tf.float32,
+            W_pos = tf.get_variable("W", dtype=tf.float32,
                                 shape=[2 * self.hidden_size_lstm, self.ntags_pos])
 
-            b = tf.get_variable("b", shape=[self.ntags_pos],
+            b_pos = tf.get_variable("b", shape=[self.ntags_pos],
                                 dtype=tf.float32, initializer=tf.zeros_initializer())
 
-            nsteps = tf.shape(output)[1]
-            output = tf.reshape(output, [-1, 2 * self.hidden_size_lstm])
-            pred = tf.matmul(output, W) + b
-            self.logits_pos = tf.reshape(pred, [-1, nsteps, self.ntags_pos])
+            nsteps_pos = tf.shape(output)[1]
+            output_pos = tf.reshape(output, [-1, 2 * self.hidden_size_lstm])
+            pred = tf.matmul(output_pos, W_pos) + b_pos
+            self.logits_pos = tf.reshape(pred, [-1, nsteps_pos, self.ntags_pos])
 
         with tf.variable_scope("net"):
-            W = tf.get_variable("W", dtype=tf.float32,
+            W_ner = tf.get_variable("W", dtype=tf.float32,
                                 shape=[2 * self.hidden_size_lstm, self.ntags_ner])
 
-            b = tf.get_variable("b", shape=[self.ntags_ner],
+            b_ner = tf.get_variable("b", shape=[self.ntags_ner],
                                 dtype=tf.float32, initializer=tf.zeros_initializer())
 
-            nsteps = tf.shape(output)[1]
-            output = tf.reshape(output, [-1, 2 * self.hidden_size_lstm])
-            pred = tf.matmul(output, W) + b
-            self.logits_ner = tf.reshape(pred, [-1, nsteps, self.ntags_pos])
+            nsteps_ner = tf.shape(output)[1]
+            output_ner = tf.reshape(output, [-1, 2 * self.hidden_size_lstm])
+            pred_ner = tf.matmul(output_ner, W_ner) + b_ner
+            self.logits_ner = tf.reshape(pred_ner, [-1, nsteps_ner, self.ntags_ner])
 
     def add_pred_op(self):
         """Defines self.labels_pred
         Gets int labels from the output of the softmax layer. The predicted label is
         the argmax of this layer
         """
-        self.labels_pred = tf.cast(tf.argmax(self.logits, axis=-1),
+        self.labels_pred_ner = tf.cast(tf.argmax(self.logits_ner, axis=-1),
+                                   tf.int32)
+        self.labels_pred_pos = tf.cast(tf.argmax(self.logits_pos, axis=-1),
                                    tf.int32)
 
     def add_loss_op(self):
         """Losses for training"""
-        losses = tf.nn.sparse_softmax_cross_entropy_with_logits(
+        losses_pos = tf.nn.sparse_softmax_cross_entropy_with_logits(
             logits=self.logits_pos, labels=self.labels)
-        mask = tf.sequence_mask(self.sequence_lengths)
-        losses = tf.boolean_mask(losses, mask)
-        self.loss_pos = tf.reduce_mean(losses)
+        mask_pos = tf.sequence_mask(self.sequence_lengths)
+        losses_pos = tf.boolean_mask(losses_pos, mask_pos)
+        self.loss_pos = tf.reduce_mean(losses_pos)
 
-        losses = tf.nn.sparse_softmax_cross_entropy_with_logits(
+        losses_ner = tf.nn.sparse_softmax_cross_entropy_with_logits(
             logits=self.logits_ner, labels=self.labels)
-        mask = tf.sequence_mask(self.sequence_lengths)
-        losses = tf.boolean_mask(losses, mask)
-        self.loss_ner = tf.reduce_mean(losses)
+        mask_ner = tf.sequence_mask(self.sequence_lengths)
+        losses_ner = tf.boolean_mask(losses_ner, mask_ner)
+        self.loss_ner = tf.reduce_mean(losses_ner)
         # Scalars for tensorboard
         tf.summary.scalar("loss", self.loss_pos)
         tf.summary.scalar("loss", self.loss_ner)
@@ -298,13 +301,13 @@ class POSModel():
         self.add_placeholders()
         self.add_word_embeddings_op()
         self.add_logits_op()
-        #self.add_pred_op()
+        self.add_pred_op()
         self.add_loss_op()
         self.add_train_op(self.lr_method, self.lr, self.loss_pos, self.loss_ner,
                           self.clip)
         self.initialize_session()
 
-    def predict_batch(self, words):
+    def predict_batch_ner(self, words):
         """
         Args:
             words: list of sentences
@@ -315,7 +318,21 @@ class POSModel():
         Predict a batch of sentences (list of word_ids)
         """
         fd, sequence_lengths = self.get_feed_dict(words, dropout=1.0)
-        labels_pred = self.sess.run(self.labels_pred, feed_dict=fd)
+        labels_pred = self.sess.run(self.labels_pred_ner, feed_dict=fd)
+        return labels_pred, sequence_lengths
+
+    def predict_batch_pos(self, words):
+        """
+        Args:
+            words: list of sentences
+
+        Returns:
+            labels_pred: list of labels for each sentence
+            sequence_length
+        Predict a batch of sentences (list of word_ids)
+        """
+        fd, sequence_lengths = self.get_feed_dict(words, dropout=1.0)
+        labels_pred = self.sess.run(self.labels_pred_pos, feed_dict=fd)
         return labels_pred, sequence_lengths
 
     def run_epoch(self, train_pos, dev_pos, train_ner, dev_ner, epoch):
@@ -334,7 +351,8 @@ class POSModel():
         batch_size = self.batch_size
         nbatches = (len(train_pos) + batch_size - 1)+(len(train_ner)+batch_size-1) // batch_size
         prog = Progbar(target=nbatches)
-
+        shuffle(train_pos)
+        shuffle(train_ner)
         for i, (words, labels, state) in enumerate(self.utils.mixed_minibatches(train_pos, train_ner, batch_size)):
             fd, _ = self.get_feed_dict(words, labels, self.learning_rate,
                                        self.keep_prob)
@@ -354,7 +372,7 @@ class POSModel():
                 self.file_writer.add_summary(summary, epoch * nbatches + i)
 
 
-    def run_evaluate(self, test):
+    def run_evaluate(self, test, pos):
         """Evaluates performance on test set
 
         Args:
@@ -366,7 +384,10 @@ class POSModel():
         """
         accs = []
         for words, labels in self.utils.minibatches(test, self.batch_size):
-            labels_pred, sequence_lengths = self.predict_batch(words)
+            if pos:
+                labels_pred, sequence_lengths = self.predict_batch_pos(words)
+            else:
+                labels_pred, sequence_lengths = self.predict_batch_ner(words)
             for lab, lab_pred, length in zip(labels, labels_pred,
                                              sequence_lengths):
                 accs += [a == b for (a, b) in zip(lab, lab_pred)]
