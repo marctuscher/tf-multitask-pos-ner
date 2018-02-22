@@ -85,6 +85,59 @@ class Utils:
         print("Imported sentences in ", time.time()-start, " seconds")
         return sentences, dictionary_dic, classes_dic
 
+    def parse_ner(self, filename):
+        """
+        ner:
+        format:
+        word \t tag
+        One word per line, sentences separated by newline.
+        Additionally, documents are separated by a line
+        -DOCSTART-	|O
+        followed by an empty line.
+
+        data is annoated in IOB-Format, I-LABEL denotes that a NE span starts B-LABEL denotes that a NE span continues, O means outside of an NE
+        we have the NE types
+        PER (person)
+        ORG (organization)
+        LOC (location)
+        MISC (miscellaneous)
+        """
+        start = time.time()
+        print('Starting NER parsing of', filename)
+        sentences = []
+        tmpdic = {'words': [], 'tags': [], 'wc': 0}
+        dictionary_dic = {}
+        index = 0
+        classes_dic = {}
+        classindex = 0
+        with open('dev.iob', 'r', encoding='utf-8') as file:
+            for line in file:
+                # if '-DOCSTART-' in line:
+                #    continue
+                if line != '\n':
+                    word, tag = line.split('\t')
+                    tag = tag[1:]  # remove leading '|'
+                    if word in self.glove.wv.vocab:
+                        tmpdic['words'].append(word)
+                        if word not in dictionary_dic.keys():
+                            dictionary_dic[word] = index
+                            index += 1
+                        if tag not in classes_dic.keys():
+                            classes_dic[tag] = classindex
+                            classindex += 1
+                        tmpdic['tags'].append(tag)
+                else:
+                    tmpdic['wc'] = len(tmpdic['words'])
+                    for key in tmpdic.keys():
+                        tmpdic[key] = np.array(tmpdic[key])
+                    if tmpdic['wc'] == 0:
+                        tmpdic = {'words': [], 'tags': [], 'wc': 0}
+                    else:
+                        sentences.append(tmpdic)
+                        tmpdic = {'words': [], 'tags': [], 'wc': 0}
+        print("Imported NER sentences in {} seconds".format(time.time()-start))
+        return sentences, dictionary_dic, classes_dic
+
 
     def _pad_sequences(self,sequences, pad_tok, max_length):
         """
