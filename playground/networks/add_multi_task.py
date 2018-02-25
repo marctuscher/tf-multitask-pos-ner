@@ -254,30 +254,30 @@ class POSModel():
             (output_fw, output_bw), _ = tf.nn.bidirectional_dynamic_rnn(
                 cell_fw, cell_bw, self.word_embeddings,
                 sequence_length=self.sequence_lengths, dtype=tf.float32)
-            output = tf.concat([output_fw, output_bw], axis=-1)
+            output = tf.add(output_fw, output_bw)
             output = tf.nn.dropout(output, self.dropout)
 
         with tf.variable_scope("pos"):
             W_pos = tf.get_variable("W", dtype=tf.float32,
-                                shape=[2 * self.hidden_size_lstm, self.ntags_pos])
+                                shape=[self.hidden_size_lstm, self.ntags_pos])
 
             b_pos = tf.get_variable("b", shape=[self.ntags_pos],
                                 dtype=tf.float32, initializer=tf.zeros_initializer())
 
             nsteps_pos = tf.shape(output)[1]
-            output_pos = tf.reshape(output, [-1, 2 * self.hidden_size_lstm])
+            output_pos = tf.reshape(output, [-1,self.hidden_size_lstm])
             pred = tf.matmul(output_pos, W_pos) + b_pos
             self.logits_pos = tf.reshape(pred, [-1, nsteps_pos, self.ntags_pos])
 
         with tf.variable_scope("net"):
             W_ner = tf.get_variable("W", dtype=tf.float32,
-                                shape=[2 * self.hidden_size_lstm, self.ntags_ner])
+                                shape=[self.hidden_size_lstm, self.ntags_ner])
 
             b_ner = tf.get_variable("b", shape=[self.ntags_ner],
                                 dtype=tf.float32, initializer=tf.zeros_initializer())
 
             nsteps_ner = tf.shape(output)[1]
-            output_ner = tf.reshape(output, [-1, 2 * self.hidden_size_lstm])
+            output_ner = tf.reshape(output, [-1,self.hidden_size_lstm])
             pred_ner = tf.matmul(output_ner, W_ner) + b_ner
             self.logits_ner = tf.reshape(pred_ner, [-1, nsteps_ner, self.ntags_ner])
 
