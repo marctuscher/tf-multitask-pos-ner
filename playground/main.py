@@ -1,6 +1,6 @@
 from utilities.data_utils import util
 import os
-from networks.add_multi_task import POSModel
+from networks.pos_lstm import POSModel
 import numpy as np
 
 def main():
