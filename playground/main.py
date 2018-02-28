@@ -1,16 +1,16 @@
 from utilities.data_utils import util
 import os
-from networks.pos_lstm import POSModel
+from networks.add_multi_task import POSModel
 import numpy as np
 
 def main():
     util.load_glove_pkl(os.getenv("DATA_DIR_DL")+str('/word2vec/glove.pkl'))
     # util.load_glove_txt(os.getenv("DATA_DIR_DL")+str('/word2vec/glove.840B.300d.w2vformat.txt'))
     sentences_pos_train, lexicon_pos_dic, classes_pos = util.parse_pos(os.getenv("DATA_DIR_DL")+'/pos/en-train.txt')
-    sentences_pos_val, lexikon_val_pos_dic, classes_val = util.parse_pos(os.getenv("DATA_DIR_DL")+'/pos/en-test.txt')
+    sentences_pos_val, lexikon_val_pos_dic, classes_val = util.parse_pos(os.getenv("DATA_DIR_DL")+'/pos/en-dev.txt')
 
     sentences_ner_train, lexicon_ner_dic, classes_ner = util.parse_ner(os.getenv("DATA_DIR_DL")+'/ner/train.iob')
-    sentences_ner_val, lexikon_val_ner_dic, classes_val = util.parse_ner(os.getenv("DATA_DIR_DL")+'/ner/test.iob')
+    sentences_ner_val, lexikon_val_ner_dic, classes_val = util.parse_ner(os.getenv("DATA_DIR_DL")+'/ner/dev.iob')
     # same words should have same ids, merging the two dictionaries
     dictionary, embeddings = util.generate_embeddings([lexicon_pos_dic, lexikon_val_pos_dic, lexicon_ner_dic, lexikon_val_ner_dic])
 

@@ -120,10 +120,10 @@ class POSModel():
             print("Epoch {:} out of {:}".format(epoch + 1,
                                                 self.nepochs))
 
-            self.run_epoch(train_pos, dev_pos,train_ner, dev_ner, epoch)
+            self.run_epoch(train_pos,train_ner, epoch)
             self.learning_rate *= self.lr_decay  # decay learning rate
 
-            if epoch % 10 == 0 or epoch == self.nepochs:
+            if epoch % 3 == 0 or epoch == self.nepochs:
 
                 metrics_pos = self.run_evaluate(dev_pos, True, classes_pos)
                 metrics_ner = self.run_evaluate(dev_ner, not True, classes_ner)
@@ -348,7 +348,7 @@ class POSModel():
         labels_pred = self.sess.run(self.labels_pred_pos, feed_dict=fd)
         return labels_pred, sequence_lengths
 
-    def run_epoch(self, train_pos, dev_pos, train_ner, dev_ner, epoch):
+    def run_epoch(self, train_pos, train_ner, epoch):
         """Performs one complete epoch over the dataset
 
         Args:
