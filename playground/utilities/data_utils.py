@@ -1,4 +1,5 @@
 import pickle
+import re
 import gensim
 import numpy as np
 import time
@@ -204,6 +205,18 @@ class Utils:
             l.append((tmp, tags))
         return l
 
+    def sen_dict_to_tuple_pred(self, sentences, dictionary):
+        """
+        Returns a list of tuples (sentences, tags)
+        """
+        l = []
+        for sen in sentences:
+            tmp = self.words2ids(sen["words"], dictionary)
+            l.append((tmp, None))
+        return l
+
+    def split_sentence(self, sentence):
+        return re.findall(r"[\w']+|[.,!?;]", sentence)
 
     def minibatches(self, data, minibatch_size):
         """
