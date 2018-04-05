@@ -19,12 +19,12 @@ class POSModel():
         self.embeddings = embeddings
         self.utils = utils
         self.train_embeddings = False
-        self.nepochs =20
-        self.keep_prob = 0.8
-        self.batch_size = 256
+        self.nepochs = 50
+        self.keep_prob = 0.8 # 0.9
+        self.batch_size = 1024 # 256
         self.lr_method = "adam"
-        self.learning_rate = 0.001
-        self.lr_decay = 0.9
+        self.learning_rate = 0.01 # 0.01
+        self.lr_decay = 0.8 #0.7
         self.clip = 1  # if negative, no clipping
         self.nepoch_no_imprv = 5
         # model hyperparameters
@@ -102,7 +102,7 @@ class POSModel():
         self.file_writer = tf.summary.FileWriter(self.dir_output+"/train",
                                                  self.sess.graph)
 
-    def train(self, train_pos, dev_pos, train_ner, dev_ner):
+    def train(self, train_pos, dev_pos, inv_classes_pos, train_ner, dev_ner, inv_classes_ner):
         """Performs training with early stopping and lr exponential decay
 
         Args:
@@ -120,13 +120,13 @@ class POSModel():
             print("Epoch {:} out of {:}".format(epoch + 1,
                                                 self.nepochs))
 
-            self.run_epoch(train_pos,train_ner, epoch)
+            self.run_epoch(train_pos, train_ner, epoch)
             self.learning_rate *= self.lr_decay  # decay learning rate
 
             if epoch % 3 == 0 or epoch == self.nepochs:
 
-                metrics_pos = self.run_evaluate(dev_pos, True, classes_pos)
-                metrics_ner = self.run_evaluate(dev_ner, not True, classes_ner)
+                metrics_pos = self.run_evaluate(dev_pos, True, classes_pos, inv_classes_pos)
+                metrics_ner = self.run_evaluate(dev_ner, not True, classes_ner, inv_classes_ner)
                 msg_pos = " - ".join(["Pos: {} {:04.2f}".format(k, v)
                           for k, v in metrics_pos.items()])
                 msg_ner = " - ".join(["Ner: {} {:04.2f}".format(k, v)
@@ -255,7 +255,6 @@ class POSModel():
                 cell_fw, cell_bw, self.word_embeddings,
                 sequence_length=self.sequence_lengths, dtype=tf.float32)
             output = tf.add(output_fw, output_bw)
-            output = tf.nn.dropout(output, self.dropout)
 
         with tf.variable_scope("pos"):
             W_pos = tf.get_variable("W", dtype=tf.float32,
@@ -267,6 +266,7 @@ class POSModel():
             nsteps_pos = tf.shape(output)[1]
             output_pos = tf.reshape(output, [-1,self.hidden_size_lstm])
             pred = tf.matmul(output_pos, W_pos) + b_pos
+            pred= tf.nn.dropout(pred, self.dropout)
             self.logits_pos = tf.reshape(pred, [-1, nsteps_pos, self.ntags_pos])
 
         with tf.variable_scope("net"):
@@ -279,6 +279,7 @@ class POSModel():
             nsteps_ner = tf.shape(output)[1]
             output_ner = tf.reshape(output, [-1,self.hidden_size_lstm])
             pred_ner = tf.matmul(output_ner, W_ner) + b_ner
+            pred_ner = tf.nn.dropout(pred_ner, self.dropout)
             self.logits_ner = tf.reshape(pred_ner, [-1, nsteps_ner, self.ntags_ner])
 
     def add_pred_op(self):
@@ -385,7 +386,7 @@ class POSModel():
                 self.file_writer.add_summary(summary, epoch * nbatches + i)
 
 
-    def run_evaluate(self, test, pos, classes):
+    def run_evaluate(self, test, pos, classes, inv_classes):
         """Evaluates performance on test set
 
         Args:
@@ -396,8 +397,7 @@ class POSModel():
 
         """
         accs = []
-        labels_all = []
-        labels_pred_all = []
+        correct_preds, total_correct, total_preds = 0., 0., 0.
         for words, labels in self.utils.minibatches(test, self.batch_size):
             if pos:
                 labels_pred, sequence_lengths = self.predict_batch_pos(words)
@@ -407,10 +407,22 @@ class POSModel():
                                              sequence_lengths):
                 lab      = lab[:length]
                 lab_pred = lab_pred[:length]
-                labels_all = np.concatenate((labels_all, lab), axis=0)
-                labels_pred_all = np.concatenate((labels_pred_all, lab_pred), axis=0)
                 accs += [a == b for (a, b) in zip(lab, lab_pred)]
-        f1 = f1_score(labels_all, labels_pred_all, average="micro")
+                if pos:
+                    correct_preds += len(lab & lab_pred)
+                    total_preds += len(lab_pred)
+                    total_correct += len(lab)
+                else:
+                    lab_chunks      = set(self.utils.get_chunks(lab, inv_classes))
+                    lab_pred_chunks = set(self.utils.get_chunks(lab_pred,
+                                                            inv_classes))
+                    correct_preds += len(lab_chunks & lab_pred_chunks)
+                    total_preds   += len(lab_pred_chunks)
+                    total_correct += len(lab_chunks)
+
+        p   = correct_preds / total_preds if correct_preds > 0 else 0
+        r   = correct_preds / total_correct if correct_preds > 0 else 0
+        f1  = 2 * p * r / (p + r) if correct_preds > 0 else 0
         acc = np.mean(accs)
         # set self.acc for Tensorboard visualization
         return {

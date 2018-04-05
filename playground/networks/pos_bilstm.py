@@ -95,7 +95,7 @@ class POSModel():
         self.file_writer = tf.summary.FileWriter(self.dir_output+"/train",
                                                  self.sess.graph)
 
-    def train(self, train, dev):
+    def train(self, train, dev, inv_classes):
         """Performs training with early stopping and lr exponential decay
 
         Args:
@@ -116,7 +116,7 @@ class POSModel():
 
             if epoch % 2 == 0:
 
-                metrics = self.run_evaluate(dev)
+                metrics = self.run_evaluate(dev, inv_classes)
                 msg = " - ".join(["{} {:04.2f}".format(k, v)
                           for k, v in metrics.items()])
                 print(msg)
@@ -327,7 +327,7 @@ class POSModel():
                 self.file_writer.add_summary(summary, epoch * nbatches + i)
 
 
-    def run_evaluate(self, test):
+    def run_evaluate(self, test, inv_classes):
         """Evaluates performance on test set
 
         Args:
@@ -338,14 +338,33 @@ class POSModel():
 
         """
         accs = []
+        correct_preds, total_correct, total_preds = 0., 0., 0.
         for words, labels in self.utils.minibatches(test, self.batch_size):
             labels_pred, sequence_lengths = self.predict_batch(words)
             for lab, lab_pred, length in zip(labels, labels_pred,
                                              sequence_lengths):
-                accs += [a == b for (a, b) in zip(lab, lab_pred)]
+                lab      = lab[:length]
+                lab_pred = lab_pred[:length]
+                acc = [a == b for (a, b) in zip(lab, lab_pred)]
+                accs += acc
+                # lab_chunks      = set(self.utils.get_chunks(lab, inv_classes))
+                # lab_pred_chunks = set(self.utils.get_chunks(lab_pred,
+                #                                            inv_classes))
+
+                # correct_preds += len(lab_chunks & lab_pred_chunks)
+                # total_preds   += len(lab_pred_chunks)
+                # total_correct += len(lab_chunks)
+                correct_preds += len()
+                total_preds += len(lab_pred)
+                total_correct += len(lab)
+
         acc = np.mean(accs)
+        p   = correct_preds / total_preds if correct_preds > 0 else 0
+        r   = correct_preds / total_correct if correct_preds > 0 else 0
+        print("p: {}, r: {}".format(p,r))
+        f1  = 2 * p * r / (p + r) if correct_preds > 0 else 0
         # set self.acc for Tensorboard visualization
-        return {"acc": 100 * acc}
+        return {"acc": 100 * acc, "f1": 100 * f1}
 
 
     def save_session(self):
