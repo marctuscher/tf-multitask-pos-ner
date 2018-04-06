@@ -20,12 +20,12 @@ class MultiTaskModel():
         self.utils = utils
         self.train_embeddings = False
         self.nepochs = 20
-        self.keep_prob = 0.8 # 0.8
-        self.batch_size = 1024 # 1024
+        self.keep_prob = 0.8 # 0.9
+        self.batch_size = 1024 # 256
         self.lr_method = "adam"
         self.learning_rate = 0.01 # 0.01
-        self.lr_decay = 0.9 # 0.9
-        self.clip = 1  # 1 if negative, no clipping
+        self.lr_decay = 0.9 #0.7
+        self.clip = 1  # if negative, no clipping
         self.nepoch_no_imprv = 5
         # model hyperparameters
         self.hidden_size_lstm = 600  # lstm on word embeddings
@@ -65,8 +65,6 @@ class MultiTaskModel():
                 optimizer = tf.train.GradientDescentOptimizer(lr)
             elif _lr_m == 'rmsprop':
                 optimizer = tf.train.RMSPropOptimizer(lr)
-            elif _lr_m == 'momentum':
-                optimizer = tf.train.MomentumOptimizer(lr, 0.01)
             else:
                 raise NotImplementedError("Unknown method {}".format(_lr_m))
 
@@ -260,6 +258,7 @@ class MultiTaskModel():
             nsteps_pos = tf.shape(output)[1]
             output_pos = tf.reshape(output, [-1,self.hidden_size_lstm])
             pred = tf.matmul(output_pos, W_pos) + b_pos
+            pred = tf.nn.sigmoid(pred)
             pred= tf.nn.dropout(pred, self.dropout)
             self.logits_pos = tf.reshape(pred, [-1, nsteps_pos, self.ntags_pos])
 
@@ -273,6 +272,7 @@ class MultiTaskModel():
             nsteps_ner = tf.shape(output)[1]
             output_ner = tf.reshape(output, [-1,self.hidden_size_lstm])
             pred_ner = tf.matmul(output_ner, W_ner) + b_ner
+            pred_ner = tf.nn.sigmoid(pred_ner)
             pred_ner = tf.nn.dropout(pred_ner, self.dropout)
             self.logits_ner = tf.reshape(pred_ner, [-1, nsteps_ner, self.ntags_ner])
 
@@ -288,15 +288,16 @@ class MultiTaskModel():
 
     def add_loss_op(self):
         """Losses for training"""
-        losses_pos = tf.nn.sparse_softmax_cross_entropy_with_logits(
-            logits=self.logits_pos, labels=self.labels)
+
+        # losses_pos = -1* tf.one_hot(indices=tf.cast(self.labels, tf.int32), depth=self.ntags_pos) * tf.log(self.logits_pos)
         mask_pos = tf.sequence_mask(self.sequence_lengths)
+        losses_pos = tf.losses.mean_squared_error(self.labels, self.logits_pos)
         losses_pos = tf.boolean_mask(losses_pos, mask_pos)
         self.loss_pos = tf.reduce_mean(losses_pos)
 
-        losses_ner = tf.nn.sparse_softmax_cross_entropy_with_logits(
-            logits=self.logits_ner, labels=self.labels)
+        # losses_ner = -1* tf.one_hot(indices=tf.cast(self.labels, tf.int32), depth=self.ntags_ner) * tf.log(self.logits_ner)
         mask_ner = tf.sequence_mask(self.sequence_lengths)
+        losses_ner = tf.losses.mean_squared_error(self.labels, self.logits_ner)
         losses_ner = tf.boolean_mask(losses_ner, mask_ner)
         self.loss_ner = tf.reduce_mean(losses_ner)
         # Scalars for tensorboard

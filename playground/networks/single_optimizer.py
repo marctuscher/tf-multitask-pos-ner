@@ -20,12 +20,12 @@ class MultiTaskModel():
         self.utils = utils
         self.train_embeddings = False
         self.nepochs = 20
-        self.keep_prob = 0.8 # 0.8
-        self.batch_size = 1024 # 1024
+        self.keep_prob = 0.8 # 0.9
+        self.batch_size = 1024 # 256
         self.lr_method = "adam"
         self.learning_rate = 0.01 # 0.01
-        self.lr_decay = 0.9 # 0.9
-        self.clip = 1  # 1 if negative, no clipping
+        self.lr_decay = 0.9 #0.7
+        self.clip = 1  # if negative, no clipping
         self.nepoch_no_imprv = 5
         # model hyperparameters
         self.hidden_size_lstm = 600  # lstm on word embeddings
@@ -44,7 +44,7 @@ class MultiTaskModel():
         init = tf.variables_initializer(variables)
         self.sess.run(init)
 
-    def add_train_op(self, lr_method, lr, pos_loss, ner_loss, clip=-1):
+    def add_train_op(self, lr_method, lr, loss, clip=-1):
         """Defines self.train_op that performs an update on a batch
 
         Args:
@@ -65,21 +65,15 @@ class MultiTaskModel():
                 optimizer = tf.train.GradientDescentOptimizer(lr)
             elif _lr_m == 'rmsprop':
                 optimizer = tf.train.RMSPropOptimizer(lr)
-            elif _lr_m == 'momentum':
-                optimizer = tf.train.MomentumOptimizer(lr, 0.01)
             else:
                 raise NotImplementedError("Unknown method {}".format(_lr_m))
 
             if clip > 0:  # gradient clipping if clip is positive
-                grads_pos, vs_pos = zip(*optimizer.compute_gradients(pos_loss))
-                grads_pos, gnorm_pos = tf.clip_by_global_norm(grads_pos, clip)
-                self.train_pos_op = optimizer.apply_gradients(zip(grads_pos, vs_pos))
-                grads_ner, vs_ner = zip(*optimizer.compute_gradients(ner_loss))
-                grads_ner, gnorm_ner = tf.clip_by_global_norm(grads_ner, clip)
-                self.train_ner_op = optimizer.apply_gradients(zip(grads_ner, vs_ner))
+                grads, vs = zip(*optimizer.compute_gradients(loss))
+                grads, gnorm = tf.clip_by_global_norm(grads, clip)
+                self.train_op = optimizer.apply_gradients(zip(grads, vs))
             else:
-                self.train_pos_op = optimizer.minimize(pos_loss)
-                self.train_ner_op = optimizer.minimize(ner_loss)
+                self.train_op = optimizer.minimize(loss)
 
 
     def initialize_session(self):
@@ -292,16 +286,16 @@ class MultiTaskModel():
             logits=self.logits_pos, labels=self.labels)
         mask_pos = tf.sequence_mask(self.sequence_lengths)
         losses_pos = tf.boolean_mask(losses_pos, mask_pos)
-        self.loss_pos = tf.reduce_mean(losses_pos)
+        loss_pos = tf.reduce_mean(losses_pos)
 
         losses_ner = tf.nn.sparse_softmax_cross_entropy_with_logits(
             logits=self.logits_ner, labels=self.labels)
         mask_ner = tf.sequence_mask(self.sequence_lengths)
         losses_ner = tf.boolean_mask(losses_ner, mask_ner)
-        self.loss_ner = tf.reduce_mean(losses_ner)
+        loss_ner = tf.reduce_mean(losses_ner)
         # Scalars for tensorboard
-        tf.summary.scalar("loss", self.loss_pos)
-        tf.summary.scalar("loss", self.loss_ner)
+        self.loss = tf.add(loss_pos, loss_ner)
+        tf.summary.scalar("loss", self.loss)
     def build(self):
         """
         Build the computational graph with functions defined earlier
@@ -311,7 +305,7 @@ class MultiTaskModel():
         self.add_logits_op()
         self.add_pred_op()
         self.add_loss_op()
-        self.add_train_op(self.lr_method, self.lr, self.loss_pos, self.loss_ner,
+        self.add_train_op(self.lr_method, self.lr, self.loss,
                           self.clip)
         self.initialize_session()
 
@@ -364,17 +358,12 @@ class MultiTaskModel():
         for i, (words, labels, state) in enumerate(self.utils.mixed_minibatches(train_pos, train_ner, batch_size)):
             fd, _ = self.get_feed_dict(words, labels, self.learning_rate,
                                        self.keep_prob)
-            if state =='pos':
-                _, train_loss, summary = self.sess.run(
-                    [self.train_pos_op, self.loss_pos, self.merged], feed_dict=fd)
 
-                prog.update(i + 1, [("train loss", train_loss)])
+            _, train_loss, summary = self.sess.run(
+                [self.train_op, self.loss, self.merged], feed_dict=fd)
 
-            else:
-                _, train_loss, summary = self.sess.run(
-                    [self.train_ner_op, self.loss_ner, self.merged], feed_dict=fd)
+            prog.update(i + 1, [("train loss", train_loss)])
 
-                prog.update(i + 1, [("train loss", train_loss)])
             # tensorboard
             if i % 10 == 0:
                 self.file_writer.add_summary(summary, epoch * nbatches + i)

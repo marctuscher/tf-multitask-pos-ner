@@ -30,7 +30,7 @@ def main():
 
     sentence = ' '.join(sentences_ner_val[0]['words'])
     print("test sentence: ", sentence)
-    predicted_tags_idxs = pos.predict_batch_ner([val_ner[0][0]])
+    predicted_tags_idxs = multi.predict_batch_ner([val_ner[0][0]])
     predicted_tags = [inv_classes_ner[tag_idx] for tag_idx in predicted_tags_idxs[0][0].tolist()]
     print("predicted tags: ", predicted_tags)
     #correct_tags_idxs = val[0][1]

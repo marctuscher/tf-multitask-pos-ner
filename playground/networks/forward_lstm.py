@@ -20,12 +20,12 @@ class MultiTaskModel():
         self.utils = utils
         self.train_embeddings = False
         self.nepochs = 20
-        self.keep_prob = 0.8 # 0.8
-        self.batch_size = 1024 # 1024
+        self.keep_prob = 0.8 # 0.9
+        self.batch_size = 1024 # 256
         self.lr_method = "adam"
         self.learning_rate = 0.01 # 0.01
-        self.lr_decay = 0.9 # 0.9
-        self.clip = 1  # 1 if negative, no clipping
+        self.lr_decay = 0.9 #0.7
+        self.clip = 1  # if negative, no clipping
         self.nepoch_no_imprv = 5
         # model hyperparameters
         self.hidden_size_lstm = 600  # lstm on word embeddings
@@ -65,8 +65,6 @@ class MultiTaskModel():
                 optimizer = tf.train.GradientDescentOptimizer(lr)
             elif _lr_m == 'rmsprop':
                 optimizer = tf.train.RMSPropOptimizer(lr)
-            elif _lr_m == 'momentum':
-                optimizer = tf.train.MomentumOptimizer(lr, 0.01)
             else:
                 raise NotImplementedError("Unknown method {}".format(_lr_m))
 
@@ -244,11 +242,9 @@ class MultiTaskModel():
         """
         with tf.variable_scope("bi-lstm"):
             cell_fw = tf.contrib.rnn.LSTMCell(self.hidden_size_lstm)
-            cell_bw = tf.contrib.rnn.LSTMCell(self.hidden_size_lstm)
-            (output_fw, output_bw), _ = tf.nn.bidirectional_dynamic_rnn(
-                cell_fw, cell_bw, self.word_embeddings,
+            output , _ = tf.nn.dynamic_rnn(
+                cell_fw, self.word_embeddings,
                 sequence_length=self.sequence_lengths, dtype=tf.float32)
-            output = tf.add(output_fw, output_bw)
 
         with tf.variable_scope("pos"):
             W_pos = tf.get_variable("W", dtype=tf.float32,
