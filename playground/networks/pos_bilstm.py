@@ -17,16 +17,16 @@ class POSModel():
         self.embeddings = embeddings
         self.utils = utils
         self.train_embeddings = False
-        self.nepochs =10
-        self.keep_prob = 0.5
-        self.batch_size = 256
+        self.nepochs =25
+        self.keep_prob = 0.8
+        self.batch_size = 1024
         self.lr_method = "adam"
-        self.learning_rate = 0.001
+        self.learning_rate = 0.01
         self.lr_decay = 0.9
-        self.clip = -1  # if negative, no clipping
+        self.clip = 1  # if negative, no clipping
         self.nepoch_no_imprv = 5
         # model hyperparameters
-        self.hidden_size_lstm = 300  # lstm on word embeddings
+        self.hidden_size_lstm = 600  # lstm on word embeddings
         self.sess = None
         self.saver = None
         # delete ./out so
@@ -156,15 +156,6 @@ class POSModel():
         # shape = (batch size)
         self.sequence_lengths = tf.placeholder(tf.int32, shape=[None],
                                                name="sequence_lengths")
-
-        # shape = (batch size, max length of sentence, max length of word)
-        self.char_ids = tf.placeholder(tf.int32, shape=[None, None, None],
-                                       name="char_ids")
-
-        # shape = (batch_size, max_length of sentence)
-        self.word_lengths = tf.placeholder(tf.int32, shape=[None, None],
-                                           name="word_lengths")
-
         # shape = (batch size, max length of sentence in batch)
         self.labels = tf.placeholder(tf.int32, shape=[None, None],
                                      name="labels")
@@ -236,19 +227,21 @@ class POSModel():
             (output_fw, output_bw), _ = tf.nn.bidirectional_dynamic_rnn(
                 cell_fw, cell_bw, self.word_embeddings,
                 sequence_length=self.sequence_lengths, dtype=tf.float32)
-            output = tf.concat([output_fw, output_bw], axis=-1)
-            output = tf.nn.dropout(output, self.dropout)
 
+            # output = tf.concat([output_fw, output_bw], axis=-1)
+            # output = tf.nn.dropout(output, self.dropout)
+            output = tf.add(output_fw, output_bw)
         with tf.variable_scope("proj"):
             W = tf.get_variable("W", dtype=tf.float32,
-                                shape=[2 * self.hidden_size_lstm, self.ntags])
+                                shape=[self.hidden_size_lstm, self.ntags])
 
             b = tf.get_variable("b", shape=[self.ntags],
                                 dtype=tf.float32, initializer=tf.zeros_initializer())
 
             nsteps = tf.shape(output)[1]
-            output = tf.reshape(output, [-1, 2 * self.hidden_size_lstm])
+            output = tf.reshape(output, [-1, self.hidden_size_lstm])
             pred = tf.matmul(output, W) + b
+            pred = tf.nn.dropout(pred, self.dropout)
             self.logits = tf.reshape(pred, [-1, nsteps, self.ntags])
 
     def add_pred_op(self):
@@ -338,7 +331,7 @@ class POSModel():
 
         """
         accs = []
-        correct_preds, total_correct, total_preds = 0., 0., 0.
+        pos_sen, correct_pos_sen = 0., 0.
         for words, labels in self.utils.minibatches(test, self.batch_size):
             labels_pred, sequence_lengths = self.predict_batch(words)
             for lab, lab_pred, length in zip(labels, labels_pred,
@@ -347,24 +340,13 @@ class POSModel():
                 lab_pred = lab_pred[:length]
                 acc = [a == b for (a, b) in zip(lab, lab_pred)]
                 accs += acc
-                # lab_chunks      = set(self.utils.get_chunks(lab, inv_classes))
-                # lab_pred_chunks = set(self.utils.get_chunks(lab_pred,
-                #                                            inv_classes))
+                pos_sen +=1
+                if len(lab) == acc.count(1):
+                    correct_pos_sen += 1
 
-                # correct_preds += len(lab_chunks & lab_pred_chunks)
-                # total_preds   += len(lab_pred_chunks)
-                # total_correct += len(lab_chunks)
-                correct_preds += len()
-                total_preds += len(lab_pred)
-                total_correct += len(lab)
-
+        whole_sen = correct_pos_sen/pos_sen
         acc = np.mean(accs)
-        p   = correct_preds / total_preds if correct_preds > 0 else 0
-        r   = correct_preds / total_correct if correct_preds > 0 else 0
-        print("p: {}, r: {}".format(p,r))
-        f1  = 2 * p * r / (p + r) if correct_preds > 0 else 0
-        # set self.acc for Tensorboard visualization
-        return {"acc": 100 * acc, "f1": 100 * f1}
+        return {"acc": 100 * acc, "whole_sen": whole_sen}
 
 
     def save_session(self):

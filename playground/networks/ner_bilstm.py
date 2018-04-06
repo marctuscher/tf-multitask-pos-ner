@@ -2,29 +2,27 @@ import numpy as np
 import os
 import tensorflow as tf
 import shutil
-from random import shuffle
-from sklearn.metrics import f1_score
+
 from utilities.keras_progbar import Progbar
 
 
-class MultiTaskModel():
+class NERModel():
 
-    def __init__(self, embeddings, ntags_pos, ntags_ner, utils):
+    def __init__(self, embeddings, ntags, utils):
         """
         Defines the hyperparameters
         """
         # training
-        self.ntags_pos = ntags_pos
-        self.ntags_ner = ntags_ner
+        self.ntags = ntags
         self.embeddings = embeddings
         self.utils = utils
         self.train_embeddings = False
-        self.nepochs = 20
-        self.keep_prob = 0.8 # 0.9
-        self.batch_size = 1024 # 256
+        self.nepochs =25
+        self.keep_prob = 0.8
+        self.batch_size = 1024
         self.lr_method = "adam"
-        self.learning_rate = 0.01 # 0.01
-        self.lr_decay = 0.9 #0.7
+        self.learning_rate = 0.01
+        self.lr_decay = 0.9
         self.clip = 1  # if negative, no clipping
         self.nepoch_no_imprv = 5
         # model hyperparameters
@@ -44,7 +42,7 @@ class MultiTaskModel():
         init = tf.variables_initializer(variables)
         self.sess.run(init)
 
-    def add_train_op(self, lr_method, lr, pos_loss, ner_loss, clip=-1):
+    def add_train_op(self, lr_method, lr, loss, clip=-1):
         """Defines self.train_op that performs an update on a batch
 
         Args:
@@ -69,16 +67,11 @@ class MultiTaskModel():
                 raise NotImplementedError("Unknown method {}".format(_lr_m))
 
             if clip > 0:  # gradient clipping if clip is positive
-                grads_pos, vs_pos = zip(*optimizer.compute_gradients(pos_loss))
-                grads_pos, gnorm_pos = tf.clip_by_global_norm(grads_pos, clip)
-                self.train_pos_op = optimizer.apply_gradients(zip(grads_pos, vs_pos))
-                grads_ner, vs_ner = zip(*optimizer.compute_gradients(ner_loss))
-                grads_ner, gnorm_ner = tf.clip_by_global_norm(grads_ner, clip)
-                self.train_ner_op = optimizer.apply_gradients(zip(grads_ner, vs_ner))
+                grads, vs = zip(*optimizer.compute_gradients(loss))
+                grads, gnorm = tf.clip_by_global_norm(grads, clip)
+                self.train_op = optimizer.apply_gradients(zip(grads, vs))
             else:
-                self.train_pos_op = optimizer.minimize(pos_loss)
-                self.train_ner_op = optimizer.minimize(ner_loss)
-
+                self.train_op = optimizer.minimize(loss)
 
     def initialize_session(self):
         """Defines self.sess and initialize the variables"""
@@ -102,7 +95,7 @@ class MultiTaskModel():
         self.file_writer = tf.summary.FileWriter(self.dir_output+"/train",
                                                  self.sess.graph)
 
-    def train(self, train_pos, dev_pos, inv_classes_pos, train_ner, dev_ner, inv_classes_ner):
+    def train(self, train, dev, inv_classes):
         """Performs training with early stopping and lr exponential decay
 
         Args:
@@ -110,41 +103,30 @@ class MultiTaskModel():
             dev: dataset
 
         """
-        best_score_pos = 0
-        best_score_ner = 0
+        best_score = 0
         nepoch_no_imprv = 0  # for early stopping
         self.add_summary()  # tensorboard
-        classes_ner = [i for i in range(self.ntags_ner)]
-        classes_pos = [i for i in range(self.ntags_pos)]
+
         for epoch in range(self.nepochs):
             print("Epoch {:} out of {:}".format(epoch + 1,
                                                 self.nepochs))
 
-            self.run_epoch(train_pos, train_ner, epoch)
+            self.run_epoch(train, dev, epoch)
             self.learning_rate *= self.lr_decay  # decay learning rate
 
-            if epoch % 3 == 0 or epoch == self.nepochs:
+            if epoch % 2 == 0:
 
-                metrics_pos = self.run_evaluate(dev_pos, True, classes_pos, inv_classes_pos)
-                metrics_ner = self.run_evaluate(dev_ner, not True, classes_ner, inv_classes_ner)
-                msg_pos = " - ".join(["Pos: {} {:04.2f}".format(k, v)
-                          for k, v in metrics_pos.items()])
-                msg_ner = " - ".join(["Ner: {} {:04.2f}".format(k, v)
-                          for k, v in metrics_ner.items()])
-                print(msg_pos)
-                print(msg_ner)
-
-                # self.file_writer.add_summary(tf.Summary(value=[tf.Summary.Value(tag="accuracy", simple_value=metrics_pos["acc"])]), epoch)
+                metrics = self.run_evaluate(dev, inv_classes)
+                msg = " - ".join(["{} {:04.2f}".format(k, v)
+                          for k, v in metrics.items()])
+                print(msg)
+                self.file_writer.add_summary(tf.Summary(value=[tf.Summary.Value(tag="accuracy", simple_value=metrics["acc"])]), epoch)
                 # early stopping and saving best parameters
-                if metrics_pos["acc"]  >= best_score_pos or metrics_ner["acc"] >= best_score_ner:
+                if metrics["acc"]  >= best_score:
                     nepoch_no_imprv = 0
                     self.save_session()
-                    if metrics_pos["acc"] >= best_score_pos:
-                        best_score_pos = metrics_pos["acc"]
-                        print("- new best score pos!")
-                    if metrics_ner["acc"] >= best_score_ner:
-                        best_score_ner = metrics_ner["acc"]
-                        print("- new best score ner!")
+                    best_score = metrics["acc"]
+                    print("- new best score!")
                 else:
                     nepoch_no_imprv += 1
                     if nepoch_no_imprv >= self.nepoch_no_imprv:
@@ -174,7 +156,6 @@ class MultiTaskModel():
         # shape = (batch size)
         self.sequence_lengths = tf.placeholder(tf.int32, shape=[None],
                                                name="sequence_lengths")
-
         # shape = (batch size, max length of sentence in batch)
         self.labels = tf.placeholder(tf.int32, shape=[None, None],
                                      name="labels")
@@ -246,60 +227,41 @@ class MultiTaskModel():
             (output_fw, output_bw), _ = tf.nn.bidirectional_dynamic_rnn(
                 cell_fw, cell_bw, self.word_embeddings,
                 sequence_length=self.sequence_lengths, dtype=tf.float32)
+
+            # output = tf.concat([output_fw, output_bw], axis=-1)
+            # output = tf.nn.dropout(output, self.dropout)
             output = tf.add(output_fw, output_bw)
+        with tf.variable_scope("proj"):
+            W = tf.get_variable("W", dtype=tf.float32,
+                                shape=[self.hidden_size_lstm, self.ntags])
 
-        with tf.variable_scope("pos"):
-            W_pos = tf.get_variable("W", dtype=tf.float32,
-                                shape=[self.hidden_size_lstm, self.ntags_pos])
-
-            b_pos = tf.get_variable("b", shape=[self.ntags_pos],
+            b = tf.get_variable("b", shape=[self.ntags],
                                 dtype=tf.float32, initializer=tf.zeros_initializer())
 
-            nsteps_pos = tf.shape(output)[1]
-            output_pos = tf.reshape(output, [-1,self.hidden_size_lstm])
-            pred = tf.matmul(output_pos, W_pos) + b_pos
-            pred= tf.nn.dropout(pred, self.dropout)
-            self.logits_pos = tf.reshape(pred, [-1, nsteps_pos, self.ntags_pos])
-
-        with tf.variable_scope("net"):
-            W_ner = tf.get_variable("W", dtype=tf.float32,
-                                shape=[self.hidden_size_lstm, self.ntags_ner])
-
-            b_ner = tf.get_variable("b", shape=[self.ntags_ner],
-                                dtype=tf.float32, initializer=tf.zeros_initializer())
-
-            nsteps_ner = tf.shape(output)[1]
-            output_ner = tf.reshape(output, [-1,self.hidden_size_lstm])
-            pred_ner = tf.matmul(output_ner, W_ner) + b_ner
-            pred_ner = tf.nn.dropout(pred_ner, self.dropout)
-            self.logits_ner = tf.reshape(pred_ner, [-1, nsteps_ner, self.ntags_ner])
+            nsteps = tf.shape(output)[1]
+            output = tf.reshape(output, [-1, self.hidden_size_lstm])
+            pred = tf.matmul(output, W) + b
+            pred = tf.nn.dropout(pred, self.dropout)
+            self.logits = tf.reshape(pred, [-1, nsteps, self.ntags])
 
     def add_pred_op(self):
         """Defines self.labels_pred
         Gets int labels from the output of the softmax layer. The predicted label is
         the argmax of this layer
         """
-        self.labels_pred_ner = tf.cast(tf.argmax(self.logits_ner, axis=-1),
-                                   tf.int32)
-        self.labels_pred_pos = tf.cast(tf.argmax(self.logits_pos, axis=-1),
+        self.labels_pred = tf.cast(tf.argmax(self.logits, axis=-1),
                                    tf.int32)
 
     def add_loss_op(self):
         """Losses for training"""
-        losses_pos = tf.nn.sparse_softmax_cross_entropy_with_logits(
-            logits=self.logits_pos, labels=self.labels)
-        mask_pos = tf.sequence_mask(self.sequence_lengths)
-        losses_pos = tf.boolean_mask(losses_pos, mask_pos)
-        self.loss_pos = tf.reduce_mean(losses_pos)
+        losses = tf.nn.sparse_softmax_cross_entropy_with_logits(
+            logits=self.logits, labels=self.labels)
+        mask = tf.sequence_mask(self.sequence_lengths)
+        losses = tf.boolean_mask(losses, mask)
+        self.loss = tf.reduce_mean(losses)
 
-        losses_ner = tf.nn.sparse_softmax_cross_entropy_with_logits(
-            logits=self.logits_ner, labels=self.labels)
-        mask_ner = tf.sequence_mask(self.sequence_lengths)
-        losses_ner = tf.boolean_mask(losses_ner, mask_ner)
-        self.loss_ner = tf.reduce_mean(losses_ner)
         # Scalars for tensorboard
-        tf.summary.scalar("loss", self.loss_pos)
-        tf.summary.scalar("loss", self.loss_ner)
+        tf.summary.scalar("loss", self.loss)
     def build(self):
         """
         Build the computational graph with functions defined earlier
@@ -309,11 +271,11 @@ class MultiTaskModel():
         self.add_logits_op()
         self.add_pred_op()
         self.add_loss_op()
-        self.add_train_op(self.lr_method, self.lr, self.loss_pos, self.loss_ner,
+        self.add_train_op(self.lr_method, self.lr, self.loss,
                           self.clip)
         self.initialize_session()
 
-    def predict_batch_ner(self, words):
+    def predict_batch(self, words):
         """
         Args:
             words: list of sentences
@@ -324,24 +286,10 @@ class MultiTaskModel():
         Predict a batch of sentences (list of word_ids)
         """
         fd, sequence_lengths = self.get_feed_dict(words, dropout=1.0)
-        labels_pred = self.sess.run(self.labels_pred_ner, feed_dict=fd)
+        labels_pred = self.sess.run(self.labels_pred, feed_dict=fd)
         return labels_pred, sequence_lengths
 
-    def predict_batch_pos(self, words):
-        """
-        Args:
-            words: list of sentences
-
-        Returns:
-            labels_pred: list of labels for each sentence
-            sequence_length
-        Predict a batch of sentences (list of word_ids)
-        """
-        fd, sequence_lengths = self.get_feed_dict(words, dropout=1.0)
-        labels_pred = self.sess.run(self.labels_pred_pos, feed_dict=fd)
-        return labels_pred, sequence_lengths
-
-    def run_epoch(self, train_pos, train_ner, epoch):
+    def run_epoch(self, train, dev, epoch):
         """Performs one complete epoch over the dataset
 
         Args:
@@ -355,30 +303,24 @@ class MultiTaskModel():
         """
         # progbar stuff for logging
         batch_size = self.batch_size
-        nbatches = (2*(min(len(train_ner), len(train_pos)) + batch_size)) / batch_size
+        nbatches = (len(train) + batch_size - 1) // batch_size
         prog = Progbar(target=nbatches)
-        shuffle(train_pos)
-        shuffle(train_ner)
-        for i, (words, labels, state) in enumerate(self.utils.mixed_minibatches(train_pos, train_ner, batch_size)):
+
+        for i, (words, labels) in enumerate(self.utils.minibatches(train, batch_size)):
             fd, _ = self.get_feed_dict(words, labels, self.learning_rate,
                                        self.keep_prob)
-            if state =='pos':
-                _, train_loss, summary = self.sess.run(
-                    [self.train_pos_op, self.loss_pos, self.merged], feed_dict=fd)
 
-                prog.update(i + 1, [("train loss", train_loss)])
+            _, train_loss, summary = self.sess.run(
+                [self.train_op, self.loss, self.merged], feed_dict=fd)
 
-            else:
-                _, train_loss, summary = self.sess.run(
-                    [self.train_ner_op, self.loss_ner, self.merged], feed_dict=fd)
+            prog.update(i + 1, [("train loss", train_loss)])
 
-                prog.update(i + 1, [("train loss", train_loss)])
             # tensorboard
             if i % 10 == 0:
                 self.file_writer.add_summary(summary, epoch * nbatches + i)
 
 
-    def run_evaluate(self, test, pos, classes, inv_classes):
+    def run_evaluate(self, test, inv_classes):
         """Evaluates performance on test set
 
         Args:
@@ -390,42 +332,26 @@ class MultiTaskModel():
         """
         accs = []
         correct_preds, total_correct, total_preds = 0., 0., 0.
-        pos_sen, correct_pos_sen = 0., 0.
         for words, labels in self.utils.minibatches(test, self.batch_size):
-            if pos:
-                labels_pred, sequence_lengths = self.predict_batch_pos(words)
-            else:
-                labels_pred, sequence_lengths = self.predict_batch_ner(words)
+            labels_pred, sequence_lengths = self.predict_batch(words)
             for lab, lab_pred, length in zip(labels, labels_pred,
                                              sequence_lengths):
                 lab      = lab[:length]
                 lab_pred = lab_pred[:length]
                 acc = [a == b for (a, b) in zip(lab, lab_pred)]
                 accs += acc
-                if pos:
-                    pos_sen +=1
-                    if len(lab) == acc.count(1):
-                        correct_pos_sen += 1
-                else:
-                    lab_chunks      = set(self.utils.get_chunks(lab, inv_classes))
-                    lab_pred_chunks = set(self.utils.get_chunks(lab_pred,
-                                                            inv_classes))
-                    correct_preds += len(lab_chunks & lab_pred_chunks)
-                    total_preds   += len(lab_pred_chunks)
-                    total_correct += len(lab_chunks)
 
+                lab_chunks      = set(self.utils.get_chunks(lab, inv_classes))
+                lab_pred_chunks = set(self.utils.get_chunks(lab_pred,
+                                                        inv_classes))
+                correct_preds += len(lab_chunks & lab_pred_chunks)
+                total_preds   += len(lab_pred_chunks)
+                total_correct += len(lab_chunks)
+        acc = np.mean(accs)
         p   = correct_preds / total_preds if correct_preds > 0 else 0
         r   = correct_preds / total_correct if correct_preds > 0 else 0
         f1  = 2 * p * r / (p + r) if correct_preds > 0 else 0
-        acc = np.mean(accs)
-        whole_sen = correct_pos_sen/pos_sen if pos else 0
-        # set self.acc for Tensorboard visualization
-        return {
-            "acc": 100 * acc
-            ,
-            "f1": f1,
-            "whole_sen": whole_sen
-        }
+        return {"acc": 100 * acc, "f1": f1}
 
 
     def save_session(self):

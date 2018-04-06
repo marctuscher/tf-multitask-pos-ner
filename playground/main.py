@@ -1,6 +1,6 @@
 from utilities.data_utils import util
 import os
-from networks.add_multi_task import POSModel
+from networks.add_multi_task import MultiTaskModel
 import numpy as np
 
 def main():
@@ -20,11 +20,11 @@ def main():
 
     dev_ner = util.sen_dict_to_tuple(sentences_ner_train, dictionary, classes_ner)
     val_ner = util.sen_dict_to_tuple(sentences_ner_val, dictionary, classes_ner)
-    pos = POSModel(embeddings, len(classes_pos), len(classes_ner), util)
+    multi = MultiTaskModel(embeddings, len(classes_pos), len(classes_ner), util)
     inv_classes_ner = {idx: tag for tag, idx in classes_ner.items()}
     inv_classes_pos = {idx: tag for tag, idx in classes_pos.items()}
-    pos.build()
-    pos.train(dev_pos, val_pos, classes_pos,  dev_ner, val_ner, classes_ner)
+    multi.build()
+    multi.train(dev_pos, val_pos, classes_pos,  dev_ner, val_ner, classes_ner)
 
     # invert class dict (idx as key,tag as value)
 
