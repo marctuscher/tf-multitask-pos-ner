@@ -20,13 +20,13 @@ class MultiTaskModel():
         self.utils = utils
         self.train_embeddings = False
         self.nepochs = 20
-        self.keep_prob = 0.8 # 0.8
+        self.keep_prob = 0.9 # 0.8
         self.batch_size = 1024 # 1024
         self.lr_method = "adam"
         self.learning_rate = 0.01 # 0.01
         self.lr_decay = 0.9 # 0.9
         self.clip = 1  # 1 if negative, no clipping
-        self.nepoch_no_imprv = 5
+        self.nepoch_no_imprv = 20
         # model hyperparameters
         self.hidden_size_lstm = 600  # lstm on word embeddings
         self.sess = None

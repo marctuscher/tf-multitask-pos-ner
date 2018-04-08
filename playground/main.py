@@ -1,8 +1,8 @@
 from utilities.data_utils import util
 import os
-from networks.add_multi_task import MultiTaskModel
+from networks.concat_multi_task import MultiTaskModel
 import numpy as np
-
+import time
 def main():
 
     util.load_glove_pkl(os.getenv("DATA_DIR_DL")+str('/word2vec/glove.pkl'))
@@ -24,7 +24,9 @@ def main():
     inv_classes_ner = {idx: tag for tag, idx in classes_ner.items()}
     inv_classes_pos = {idx: tag for tag, idx in classes_pos.items()}
     multi.build()
+    start = time.time()
     multi.train(dev_pos, val_pos, classes_pos,  dev_ner, val_ner, classes_ner)
+    print("finished after", time.time()-start)
 
     # invert class dict (idx as key,tag as value)
 

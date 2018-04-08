@@ -17,7 +17,7 @@ class NERModel():
         self.embeddings = embeddings
         self.utils = utils
         self.train_embeddings = False
-        self.nepochs =25
+        self.nepochs = 20
         self.keep_prob = 0.8
         self.batch_size = 1024
         self.lr_method = "adam"
