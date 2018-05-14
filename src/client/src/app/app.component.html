@@ -1,0 +1,31 @@
+<!--The content below is only a placeholder and can be replaced.-->
+<div style="text-align:center">
+    <form style="padding-bottom: 100px;padding-top:100px">
+    <input name="sentence" type="text" value="" [(ngModel)]="this.sentence" />
+    <button (click)="this.predict()">Submit</button>
+    </form>
+
+    <div *ngFor="let pred of this.predictions; let i = index">
+        <div class="container">
+        <table style="padding-bottom: 30px" class="table table-stripped">
+            <thead class="thead-dark">
+                <tr>
+                    <th>Sentence:</th>
+                <th *ngFor="let word of pred.words">{{word}}</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr>
+                    <th>POS:</th>
+                <td *ngFor="let pos of pred.tags_pos">{{pos}}</td>
+            </tr>
+            <tr>
+                    <th>NER:</th>
+                <td *ngFor="let ner of pred.tags_ner">{{ner}}</td>
+            </tr>
+            </tbody>
+        </table>
+        </div>
+    </div>
+</div>
+
